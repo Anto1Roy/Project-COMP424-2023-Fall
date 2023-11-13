@@ -7,23 +7,23 @@ from copy import deepcopy
 import time
 
 
-@register_agent("student_agent")
-class StudentAgent(Agent):
+@register_agent("second_agent")
+class SecondAgent(Agent):
     """
     A dummy class for your implementation. Feel free to use this class to
     add any helper functionalities needed for your agent.
     """
 
     def __init__(self):
-        super(StudentAgent, self).__init__()
-        self.name = "StudentAgent"
+        super(SecondAgent, self).__init__()
+        self.name = "SecondAgent"
         self.dir_map = {
             "u": 0,
             "r": 1,
             "d": 2,
             "l": 3,
         }
-        self.max_depth = 3
+        self.max_depth = 6
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
         """
@@ -52,12 +52,43 @@ class StudentAgent(Agent):
         print("My AI's turn took ", time_taken, "seconds.")
 
         # dummy return
-        return my_pos, self.dir_map["u"]
+        return my_pos, action
     
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
-        # Add your own evaluation function based on the game state
-        # The higher the score, the better the position for the bot
-        return 0
+        my_area_size = self.calculate_area_size(chess_board, my_pos, max_step)
+        adv_area_size = self.calculate_area_size(chess_board, adv_pos, max_step)
+
+        # The goal is to trap the opponent in a smaller area, so we want to maximize the difference
+        evaluation = my_area_size - adv_area_size
+
+        return evaluation
+    
+    def calculate_area_size(self, chess_board, start_pos, max_step):
+        visited = set()
+        stack = [start_pos]
+        area_size = 0
+
+        while stack > 0 & (max_step > 0):
+            max_step -= 1
+            current_pos = stack.pop()
+            if current_pos in visited:
+                continue
+
+            visited.add(current_pos)
+            area_size += 1
+
+            x, y = current_pos
+            for direction in ["u", "r", "d", "l"]:
+                new_x, new_y = self.get_new_position(current_pos, direction)
+                if self.is_valid_position(chess_board, (new_x, new_y)) and (new_x, new_y) not in visited:
+                    stack.append((new_x, new_y))
+
+        return area_size
+
+    def is_valid_position(self, chess_board, pos):
+        x, y = pos
+        x_max, y_max, _ = chess_board.shape
+        return 0 <= x < x_max and 0 <= y < y_max
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
