@@ -68,7 +68,7 @@ class SecondAgent(Agent):
         stack = [start_pos]
         area_size = 0
 
-        while stack > 0 & (max_step > 0):
+        while stack:
             max_step -= 1
             current_pos = stack.pop()
             if current_pos in visited:
@@ -98,7 +98,7 @@ class SecondAgent(Agent):
         if self.is_terminal_node(depth):
             return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None
 
-        valid_actions = ["u", "r", "d", "l"]
+        valid_actions = [0, 1, 2, 3]
 
         if maximizing_player:
             max_eval = float('-inf')
