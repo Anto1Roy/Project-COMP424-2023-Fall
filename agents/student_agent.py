@@ -55,8 +55,9 @@ class StudentAgent(Agent):
         return my_pos, self.dir_map["u"]
     
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
-        # Add your own evaluation function based on the game state
-        # The higher the score, the better the position for the bot
+        print(chess_board)
+        print(my_pos)
+        print(adv_pos)
         return 0
 
     def is_terminal_node(self, depth):

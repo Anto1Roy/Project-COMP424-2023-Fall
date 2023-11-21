@@ -13,6 +13,8 @@ class SecondAgent(Agent):
     A dummy class for your implementation. Feel free to use this class to
     add any helper functionalities needed for your agent.
     """
+    
+    global BOARD_SIZE
 
     def __init__(self):
         super(SecondAgent, self).__init__()
@@ -23,7 +25,7 @@ class SecondAgent(Agent):
             "d": 2,
             "l": 3,
         }
-        self.max_depth = 6
+        self.max_depth = 3
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
         """
@@ -44,6 +46,7 @@ class SecondAgent(Agent):
         # Some simple code to help you with timing. Consider checking 
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
+        BOARD_SIZE = 8
         start_time = time.time()
         _, action = self.minimax(chess_board, my_pos, adv_pos, max_step, self.max_depth, float('-inf'), float('inf'), True)
         time_taken = time.time() - start_time
@@ -54,14 +57,25 @@ class SecondAgent(Agent):
         # dummy return
         return my_pos, action
     
+    #check all possible in a radius of max-depth
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
         my_area_size = self.calculate_area_size(chess_board, my_pos, max_step)
         adv_area_size = self.calculate_area_size(chess_board, adv_pos, max_step)
 
-        # The goal is to trap the opponent in a smaller area, so we want to maximize the difference
-        evaluation = my_area_size - adv_area_size
+        return my_area_size - adv_area_size
+    
+    # sum of going only right, then only left then only up then only down
+    def calculate_line_size(self, chess_board, start_pos):
+        (x,y) = start_pos
+        line_size = 0
+        for direction in ["u", "r", "d", "l"]:
+            new_x, new_y = self.get_new_position(start_pos, direction)
+            while self.is_valid_position(chess_board, (new_x, new_y)):
+                new_x, new_y = self.get_new_position(start_pos, direction)
+                line_size += 1
 
-        return evaluation
+        return line_size
+        
     
     def calculate_area_size(self, chess_board, start_pos, max_step):
         visited = set()
@@ -89,6 +103,21 @@ class SecondAgent(Agent):
         x, y = pos
         x_max, y_max, _ = chess_board.shape
         return 0 <= x < x_max and 0 <= y < y_max
+    
+    # check whether the action is valid
+    def valid_action(self, pos, action, chess_board):
+        (x, y) = pos
+        if action == "u":
+            return x > 0 and not chess_board[x, y, 0]
+        elif action == "r":
+            return y < chess_board.shape[0] and not chess_board[x, y, 1]
+        elif action == "d":
+            return x < chess_board.shape[0] and not chess_board[x, y, 2]
+        elif action == "l":
+            return y > 0 and not chess_board[x, y, 3]
+        else:
+            return False
+        
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
@@ -98,49 +127,107 @@ class SecondAgent(Agent):
         if self.is_terminal_node(depth):
             return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None
 
-        valid_actions = [0, 1, 2, 3]
+        valid_actions = ["u", "r", "d", "l"]
 
         if maximizing_player:
             max_eval = float('-inf')
             best_action = None
             for action in valid_actions:
-                new_pos = self.get_new_position(my_pos, action)
-                new_board = self.simulate_move(chess_board, my_pos, new_pos, action)
-                eval, _ = self.minimax(new_board, new_pos, adv_pos, max_step, depth - 1, alpha, beta, False)
-                if eval > max_eval:
-                    max_eval = eval
-                    best_action = action
-                alpha = max(alpha, eval)
-                if beta <= alpha:
-                    break
+                if(self.valid_action(my_pos, action, chess_board)):
+                    new_pos = self.get_new_position(my_pos, action)
+                    for wall in valid_actions:
+                        new_board = self.simulate_move(chess_board, new_pos, wall)
+                        eval, _ = self.minimax(new_board, new_pos, adv_pos, max_step, depth - 1, alpha, beta, False)
+                        if eval > max_eval:
+                            max_eval = eval
+                            best_action = action
+                        alpha = max(alpha, eval)
+                        if beta <= alpha:
+                            break
             return max_eval, best_action
         else:
             min_eval = float('inf')
             best_action = None
             for action in valid_actions:
-                new_pos = self.get_new_position(adv_pos, action)
-                new_board = self.simulate_move(chess_board, adv_pos, new_pos, action)
-                eval, _ = self.minimax(new_board, my_pos, new_pos, max_step, depth - 1, alpha, beta, True)
-                if eval < min_eval:
-                    min_eval = eval
-                    best_action = action
-                beta = min(beta, eval)
-                if beta <= alpha:
-                    break
+                if(self.valid_action(adv_pos, action, chess_board)):
+                    new_pos = self.get_new_position(adv_pos, action)
+                    for wall in valid_actions:
+                        new_board = self.simulate_move(chess_board, new_pos, wall)
+                        eval, _ = self.minimax(new_board, my_pos, new_pos, max_step, depth - 1, alpha, beta, True)
+                        if eval < min_eval:
+                            min_eval = eval
+                            best_action = action
+                        beta = min(beta, eval)
+                        if beta <= alpha:
+                            break
             return min_eval, best_action
 
     def get_new_position(self, pos, action):
-        x, y = pos
-        if action == "u":
-            return x - 1, y
-        elif action == "r":
-            return x, y + 1
-        elif action == "d":
-            return x + 1, y
-        elif action == "l":
-            return x, y - 1
+        if pos != None:
+            (x ,y) = pos
+            if action == "u":
+                return (x - 1, y)
+            elif action == "r":
+                return (x, y + 1)
+            elif action == "d":
+                return (x + 1, y)
+            elif action == "l":
+                return (x, y - 1)
+        else:
+            print("pos is none")
+    
+    def check_valid_step(self, start_pos, end_pos, barrier_dir):
+        """
+        Check if the step the agent takes is valid (reachable and within max steps).
 
-    def simulate_move(self, chess_board, start_pos, end_pos, action):
-        # Add your own logic to simulate the move on the chess board
-        # This may include updating the positions of both the bot and the opponent
-        return chess_board.copy()
+        Parameters
+        ----------
+        start_pos : tuple
+            The start position of the agent.
+        end_pos : np.ndarray
+            The end position of the agent.
+        barrier_dir : int
+            The direction of the barrier.
+        """
+        # Endpoint already has barrier or is border
+        r, c = end_pos
+        if self.chess_board[r, c, barrier_dir]:
+            return False
+        if np.array_equal(start_pos, end_pos):
+            return True
+
+        # Get position of the adversary
+        adv_pos = self.p0_pos if self.turn else self.p1_pos
+
+        # BFS
+        state_queue = [(start_pos, 0)]
+        visited = {tuple(start_pos)}
+        is_reached = False
+        while state_queue and not is_reached:
+            cur_pos, cur_step = state_queue.pop(0)
+            r, c = cur_pos
+            if cur_step == self.max_step:
+                break
+            for dir, move in enumerate(self.moves):
+                if self.chess_board[r, c, dir]:
+                    continue
+
+                next_pos = cur_pos + move
+                if np.array_equal(next_pos, adv_pos) or tuple(next_pos) in visited:
+                    continue
+                if np.array_equal(next_pos, end_pos):
+                    is_reached = True
+                    break
+
+                visited.add(tuple(next_pos))
+                state_queue.append((next_pos, cur_step + 1))
+
+        return is_reached
+            
+    def simulate_move(self, chess_board, end_pos, action):
+        x,y = end_pos
+        new_board = chess_board.copy()
+        new_board[x,y, self.dir_map[action]] = True
+        
+
+        return new_board

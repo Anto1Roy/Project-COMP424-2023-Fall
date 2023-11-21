@@ -1,1 +1,1 @@
-1. Evaluate Function : 
+1. Evaluate Function : # of possible movements, position vs enemy position, area control
