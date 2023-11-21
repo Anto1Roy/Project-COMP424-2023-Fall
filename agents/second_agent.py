@@ -48,21 +48,23 @@ class SecondAgent(Agent):
         # so far when it nears 2 seconds.
         BOARD_SIZE = 8
         start_time = time.time()
-        _, action = self.minimax(chess_board, my_pos, adv_pos, max_step, self.max_depth, float('-inf'), float('inf'), True)
+        _, action, wall = self.gyuminimax(chess_board, my_pos, adv_pos, max_step, self.max_depth, float('-inf'), float('inf'), True)
         time_taken = time.time() - start_time
+
+        new_pos = self.get_new_position(my_pos, action)
         
         
         print("My AI's turn took ", time_taken, "seconds.")
 
         # dummy return
-        return my_pos, action
+        return new_pos, self.dir_map[wall]
     
     #check all possible in a radius of max-depth
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
         my_area_size = self.calculate_line_size(chess_board, my_pos) #,max_step)
         adv_area_size = self.calculate_line_size(chess_board, adv_pos) #, max_step)
 
-        return my_area_size - adv_area_size
+        return my_area_size
     
     # sum of going only right, then only left then only up then only down
     def calculate_line_size(self, chess_board, start_pos):
@@ -140,6 +142,28 @@ class SecondAgent(Agent):
         else:
             return False
         
+    def iterate_positions_around(self,x, y, radius):
+        positions = []
+        for i in range(-radius, radius + 1):
+            for j in range(-radius, radius + 1):
+                positions.append((x + i, y + j))
+        return positions
+
+    def evaluate_position(self, chess_board, my_pos, adv_pos, max_step):
+        x,y = my_pos
+        count = 0
+        for i in chess_board[x][y] :
+            if i == True:
+                count += 1
+        return count, my_pos
+
+    def sort_positions(self, chess_board, my_pos, max_step):
+        positions = []
+        for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
+            if self.check_valid_move(my_pos, pos):
+                positions.append(self.evaluate_position(chess_board, pos, adv_pos, max_step))
+
+        return positions.sort(key=lambda x: x[0])[1]
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
@@ -160,13 +184,48 @@ class SecondAgent(Agent):
     # board = chess_board.copy()
     # board[my_pos] = how good this position is
 
+    def gyuminimax(self, chess_board, my_pos, adv_pos, max_step, depth, alpha, beta, maximizing_player):
+        if self.is_terminal_node(depth):
+            return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None, None
+
+        if maximizing_player:
+            max_eval = float('-inf')
+            best_action = None
+            for move in self.sort_positions(chess_board, my_pos, max_step):
+                for wall in self.dir_map.keys():
+                    new_board = self.simulate_move(chess_board, move, wall)
+                    eval, _, _  = self.minimax(new_board, move, adv_pos, max_step, depth - 1, alpha, beta, False)
+                    if eval > max_eval:
+                        max_eval = eval
+                        best_action = (action, wall)
+                    alpha = max(alpha, eval)
+                    if beta <= alpha:
+                        break
+            action, wall = best_action
+            return max_eval, action, wall
+        else:
+            min_eval = float('inf')
+            best_action = None
+            for move in self.sort_positions(chess_board, adv_pos, max_step):
+                for wall in self.dir_map.keys():
+                    new_board = self.simulate_move(chess_board, move, wall)
+                    eval, _, _  = self.minimax(new_board, my_pos, move, max_step, depth - 1, alpha, beta, True)
+                    if eval < min_eval:
+                        min_eval = eval
+                        best_action = (action, wall)
+                    beta = min(beta, eval)
+                    if beta <= alpha:
+                        break
+            action, wall = best_action
+            return min_eval, action, wall
+
     def minimax(self, chess_board, my_pos, adv_pos, max_step, depth, alpha, beta, maximizing_player):
         if self.is_terminal_node(depth):
-            return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None
+            return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None, None
 
         valid_actions = ["u", "r", "d", "l"]
 
-        if maximizing_player:
+        if maximizing_player:   
             max_eval = float('-inf')
             best_action = None
             for action in valid_actions:
@@ -174,14 +233,15 @@ class SecondAgent(Agent):
                     new_pos = self.get_new_position(my_pos, action)
                     for wall in valid_actions:
                         new_board = self.simulate_move(chess_board, new_pos, wall)
-                        eval, _ = self.minimax(new_board, new_pos, adv_pos, max_step, depth - 1, alpha, beta, False)
+                        eval, _, _ = self.minimax(new_board, new_pos, adv_pos, max_step, depth - 1, alpha, beta, False)
                         if eval > max_eval:
                             max_eval = eval
-                            best_action = action
+                            best_action = (action, wall)
                         alpha = max(alpha, eval)
                         if beta <= alpha:
                             break
-            return max_eval, best_action
+            action, wall = best_action
+            return max_eval, action, wall
         else:
             min_eval = float('inf')
             best_action = None
@@ -190,14 +250,15 @@ class SecondAgent(Agent):
                     new_pos = self.get_new_position(adv_pos, action)
                     for wall in valid_actions:
                         new_board = self.simulate_move(chess_board, new_pos, wall)
-                        eval, _ = self.minimax(new_board, my_pos, new_pos, max_step, depth - 1, alpha, beta, True)
+                        eval, _, _  = self.minimax(new_board, my_pos, new_pos, max_step, depth - 1, alpha, beta, True)
                         if eval < min_eval:
                             min_eval = eval
-                            best_action = action
+                            best_action = (action, wall)
                         beta = min(beta, eval)
                         if beta <= alpha:
                             break
-            return min_eval, best_action
+            action, wall = best_action
+            return min_eval, action, wall
 
     def get_new_position(self, pos, action):
         if pos != None:
