@@ -42,16 +42,14 @@ class SecondAgent(Agent):
 
         Please check the sample implementation in agents/random_agent.py or agents/human_agent.py for more details.
         """
-        
+        self.max_step = max_step
+        self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
         # Some simple code to help you with timing. Consider checking 
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
-        BOARD_SIZE = 8
         start_time = time.time()
-        _, action, wall = self.gyuminimax(chess_board, my_pos, adv_pos, max_step, self.max_depth, float('-inf'), float('inf'), True)
+        _, new_pos, wall = self.gyuminimax(chess_board, my_pos, adv_pos, max_step, self.max_depth, float('-inf'), float('inf'), True)
         time_taken = time.time() - start_time
-
-        new_pos = self.get_new_position(my_pos, action)
         
         
         print("My AI's turn took ", time_taken, "seconds.")
@@ -141,12 +139,13 @@ class SecondAgent(Agent):
             return y > 0 and not chess_board[x, y, 3]
         else:
             return False
-        
+    # write a function that returns every move such that i + j <= max_step
     def iterate_positions_around(self,x, y, radius):
         positions = []
-        for i in range(-radius, radius + 1):
-            for j in range(-radius, radius + 1):
-                positions.append((x + i, y + j))
+        for i in range(-radius, radius):
+            for j in range(-radius, radius):
+                if i + j <= radius:
+                    positions.append((x + i, y + j))
         return positions
 
     def evaluate_position(self, chess_board, my_pos, adv_pos, max_step):
@@ -157,13 +156,13 @@ class SecondAgent(Agent):
                 count += 1
         return count, my_pos
 
-    def sort_positions(self, chess_board, my_pos, max_step):
+    def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         positions = []
         for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
-            if self.check_valid_move(my_pos, pos):
+            if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos, max_step))
-
-        return positions.sort(key=lambda x: x[0])[1]
+        positions.sort(key=lambda x: x[0])
+        return list(map(lambda c: c[1], positions))
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
@@ -185,19 +184,22 @@ class SecondAgent(Agent):
     # board[my_pos] = how good this position is
 
     def gyuminimax(self, chess_board, my_pos, adv_pos, max_step, depth, alpha, beta, maximizing_player):
+        depth = depth - 1
         if self.is_terminal_node(depth):
             return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None, None
 
         if maximizing_player:
             max_eval = float('-inf')
             best_action = None
-            for move in self.sort_positions(chess_board, my_pos, max_step):
+            print("my_pos", my_pos)
+            for move in self.sort_positions(chess_board, my_pos,adv_pos, max_step):
+                print(move)
                 for wall in self.dir_map.keys():
                     new_board = self.simulate_move(chess_board, move, wall)
-                    eval, _, _  = self.minimax(new_board, move, adv_pos, max_step, depth - 1, alpha, beta, False)
+                    eval, _, _  = self.gyuminimax(new_board, move, adv_pos, max_step, depth - 1, alpha, beta, False)
                     if eval > max_eval:
                         max_eval = eval
-                        best_action = (action, wall)
+                        best_action = (move, wall)
                     alpha = max(alpha, eval)
                     if beta <= alpha:
                         break
@@ -206,16 +208,18 @@ class SecondAgent(Agent):
         else:
             min_eval = float('inf')
             best_action = None
-            for move in self.sort_positions(chess_board, adv_pos, max_step):
+            print("adv_pos", adv_pos)
+            for move in self.sort_positions(chess_board, adv_pos, my_pos, max_step):
                 for wall in self.dir_map.keys():
                     new_board = self.simulate_move(chess_board, move, wall)
-                    eval, _, _  = self.minimax(new_board, my_pos, move, max_step, depth - 1, alpha, beta, True)
+                    eval, _, _  = self.gyuminimax(new_board, my_pos, move, max_step, depth - 1, alpha, beta, True)
                     if eval < min_eval:
                         min_eval = eval
-                        best_action = (action, wall)
+                        best_action = (move, wall)
                     beta = min(beta, eval)
                     if beta <= alpha:
                         break
+            
             action, wall = best_action
             return min_eval, action, wall
 
@@ -274,7 +278,7 @@ class SecondAgent(Agent):
         else:
             print("pos is none")
 
-    def check_valid_move(self, start_pos, end_pos):
+    def check_valid_move(self, start_pos, end_pos, adv_pos,chess_board):
         """
         Check if the step the agent takes is valid (reachable and within max steps).
 
@@ -286,9 +290,6 @@ class SecondAgent(Agent):
             The end position of the agent.
         """
 
-        # Get position of the adversary
-        adv_pos = self.p0_pos if self.turn else self.p1_pos
-
         # BFS
         state_queue = [(start_pos, 0)]
         visited = {tuple(start_pos)}
@@ -299,10 +300,9 @@ class SecondAgent(Agent):
             if cur_step == self.max_step:
                 break
             for dir, move in enumerate(self.moves):
-                if self.chess_board[r, c, dir]:
+                if chess_board[r, c, dir]:
                     continue
-
-                next_pos = cur_pos + move
+                next_pos = (cur_pos[0] + move[0], cur_pos[1] + move[1])
                 if np.array_equal(next_pos, adv_pos) or tuple(next_pos) in visited:
                     continue
                 if np.array_equal(next_pos, end_pos):
