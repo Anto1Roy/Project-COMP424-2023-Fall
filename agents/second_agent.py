@@ -59,8 +59,8 @@ class SecondAgent(Agent):
     
     #check all possible in a radius of max-depth
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
-        my_area_size = self.calculate_area_size_reachable(chess_board, my_pos,max_step)
-        adv_area_size = self.calculate_area_size_reachable(chess_board, adv_pos, max_step)
+        my_area_size = self.calculate_line_size(chess_board, my_pos) #,max_step)
+        adv_area_size = self.calculate_line_size(chess_board, adv_pos) #, max_step)
 
         return my_area_size - adv_area_size
     
@@ -70,7 +70,7 @@ class SecondAgent(Agent):
         for direction in ["u", "r", "d", "l"]:
             new_pos = start_pos
             while self.valid_action(new_pos, direction, chess_board):
-                new_pos = self.get_new_position(start_pos, direction)
+                new_pos = self.get_new_position(new_pos, direction)
                 line_size += 1
         
         return line_size
@@ -151,6 +151,7 @@ class SecondAgent(Agent):
     #                       simulate move
 
     # optimal: for each evaluated reachable tile
+    #           Ex : k = 3 => 24 
     #           for each action
     #               for each wall
     #                   evaluate move
@@ -211,6 +212,48 @@ class SecondAgent(Agent):
                 return (x, y - 1)
         else:
             print("pos is none")
+
+    def check_valid_move(self, start_pos, end_pos):
+        """
+        Check if the step the agent takes is valid (reachable and within max steps).
+
+        Parameters
+        ----------
+        start_pos : tuple
+            The start position of the agent.
+        end_pos : np.ndarray
+            The end position of the agent.
+        """
+
+        # Get position of the adversary
+        adv_pos = self.p0_pos if self.turn else self.p1_pos
+
+        # BFS
+        state_queue = [(start_pos, 0)]
+        visited = {tuple(start_pos)}
+        is_reached = False
+        while state_queue and not is_reached:
+            cur_pos, cur_step = state_queue.pop(0)
+            r, c = cur_pos
+            if cur_step == self.max_step:
+                break
+            for dir, move in enumerate(self.moves):
+                if self.chess_board[r, c, dir]:
+                    continue
+
+                next_pos = cur_pos + move
+                if np.array_equal(next_pos, adv_pos) or tuple(next_pos) in visited:
+                    continue
+                if np.array_equal(next_pos, end_pos):
+                    is_reached = True
+                    break
+
+                visited.add(tuple(next_pos))
+                state_queue.append((next_pos, cur_step + 1))
+
+        return is_reached
+
+            
     
     def check_valid_step(self, start_pos, end_pos, barrier_dir):
         """
