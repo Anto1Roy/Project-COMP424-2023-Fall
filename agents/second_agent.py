@@ -59,21 +59,20 @@ class SecondAgent(Agent):
     
     #check all possible in a radius of max-depth
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
-        my_area_size = self.calculate_area_size(chess_board, my_pos, max_step)
-        adv_area_size = self.calculate_area_size(chess_board, adv_pos, max_step)
+        my_area_size = self.calculate_line_size(chess_board, my_pos) #,max_step)
+        adv_area_size = self.calculate_line_size(chess_board, adv_pos) #, max_step)
 
         return my_area_size - adv_area_size
     
     # sum of going only right, then only left then only up then only down
     def calculate_line_size(self, chess_board, start_pos):
-        (x,y) = start_pos
         line_size = 0
         for direction in ["u", "r", "d", "l"]:
-            new_x, new_y = self.get_new_position(start_pos, direction)
-            while self.is_valid_position(chess_board, (new_x, new_y)):
-                new_x, new_y = self.get_new_position(start_pos, direction)
+            new_pos = start_pos
+            while self.valid_action(new_pos, direction, chess_board):
+                new_pos = self.get_new_position(start_pos, direction)
                 line_size += 1
-
+        
         return line_size
         
     
@@ -110,7 +109,7 @@ class SecondAgent(Agent):
         if action == "u":
             return x > 0 and not chess_board[x, y, 0]
         elif action == "r":
-            return y < chess_board.shape[0] and not chess_board[x, y, 1]
+            return y < chess_board.shape[1] and not chess_board[x, y, 1]
         elif action == "d":
             return x < chess_board.shape[0] and not chess_board[x, y, 2]
         elif action == "l":
