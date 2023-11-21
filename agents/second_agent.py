@@ -59,8 +59,8 @@ class SecondAgent(Agent):
     
     #check all possible in a radius of max-depth
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
-        my_area_size = self.calculate_line_size(chess_board, my_pos) #,max_step)
-        adv_area_size = self.calculate_line_size(chess_board, adv_pos) #, max_step)
+        my_area_size = self.calculate_area_size_reachable(chess_board, my_pos,max_step)
+        adv_area_size = self.calculate_area_size_reachable(chess_board, adv_pos, max_step)
 
         return my_area_size - adv_area_size
     
@@ -76,13 +76,34 @@ class SecondAgent(Agent):
         return line_size
         
     
-    def calculate_area_size(self, chess_board, start_pos, max_step):
+    def calculate_area_size_reachable(self, chess_board, start_pos, max_step):
+        visited = set()
+        stack = [start_pos]
+        area_size = 0
+
+        while stack and max_step > 0:
+            max_step -= 1
+            current_pos = stack.pop()
+            if current_pos in visited:
+                continue
+
+            visited.add(current_pos)
+            area_size += 1
+
+            x, y = current_pos
+            for direction in ["u", "r", "d", "l"]:
+                new_x, new_y = self.get_new_position(current_pos, direction)
+                if self.is_valid_position(chess_board, (new_x, new_y)) and (new_x, new_y) not in visited:
+                    stack.append((new_x, new_y))
+
+        return area_size
+    
+    def calculate_area_size(self, chess_board, start_pos):
         visited = set()
         stack = [start_pos]
         area_size = 0
 
         while stack:
-            max_step -= 1
             current_pos = stack.pop()
             if current_pos in visited:
                 continue
@@ -103,6 +124,8 @@ class SecondAgent(Agent):
         x_max, y_max, _ = chess_board.shape
         return 0 <= x < x_max and 0 <= y < y_max
     
+    
+    
     # check whether the action is valid
     def valid_action(self, pos, action, chess_board):
         (x, y) = pos
@@ -121,6 +144,20 @@ class SecondAgent(Agent):
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
         return depth == 0
+    
+    # current: for each neighbouring tile
+    #               for each wall
+    #                   evaluate move
+    #                       simulate move
+
+    # optimal: for each evaluated reachable tile
+    #           for each action
+    #               for each wall
+    #                   evaluate move
+    #                       simulate move
+
+    # board = chess_board.copy()
+    # board[my_pos] = how good this position is
 
     def minimax(self, chess_board, my_pos, adv_pos, max_step, depth, alpha, beta, maximizing_player):
         if self.is_terminal_node(depth):
