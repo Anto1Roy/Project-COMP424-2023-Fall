@@ -44,6 +44,7 @@ class StudentAgent(Agent):
         """
         self.max_step = max_step
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
+        self.size = chess_board.shape[0] - 1
         # Some simple code to help you with timing. Consider checking 
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
@@ -56,12 +57,14 @@ class StudentAgent(Agent):
         # print("My AI's turn took ", time_taken, "seconds.")
         # print(f"position , move :  {new_pos} , {self.dir_map[wall]}")
 
-        # dummy return
+        if new_pos == None or wall == None:
+            return self.random_move(chess_board, my_pos, adv_pos, max_step)
+
         return new_pos, self.dir_map[wall]
     
     #check all possible in a radius of max-depth
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
-        my_area_size = self.calculate_area_size_reachable(chess_board, my_pos,max_step)
+        my_area_size = self.calculate_area_size_reachable(chess_board, my_pos, max_step)
         adv_area_size = self.calculate_area_size_reachable(chess_board, adv_pos, max_step)
 
         return my_area_size - adv_area_size
@@ -127,7 +130,11 @@ class StudentAgent(Agent):
         x_max, y_max, _ = chess_board.shape
         return 0 <= x < x_max and 0 <= y < y_max
     
-    
+    def random_move(self, chess_board, my_pos, adv_pos, max_step):
+        for i in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
+            for j in self.dir_map.keys():
+                if self.check_valid_step(my_pos, i, adv_pos, j, chess_board):
+                    return i, j
     
     # check whether the action is valid
     def valid_action(self, pos, action, chess_board):
@@ -135,9 +142,9 @@ class StudentAgent(Agent):
         if action == "u":
             return x > 0 and not chess_board[x, y, 0]
         elif action == "r":
-            return y < chess_board.shape[1] and not chess_board[x, y, 1]
+            return y < self.size and not chess_board[x, y, 1]
         elif action == "d":
-            return x < chess_board.shape[0] and not chess_board[x, y, 2]
+            return x < self.size and not chess_board[x, y, 2]
         elif action == "l":
             return y > 0 and not chess_board[x, y, 3]
         else:
@@ -148,26 +155,28 @@ class StudentAgent(Agent):
         positions = []
         for i in range(-radius, radius):
             for j in range(-radius, radius):
-                if abs(i) + abs(j) <= radius:
+                if abs(i) + abs(j) <= radius and 0 <= (x + i) <= self.size and 0 <= (y + j) <= self.size :
                     positions.append((x + i, y + j))
         return positions
 
     def evaluate_position(self, chess_board, my_pos, adv_pos, max_step):
         x,y = my_pos
+        x2, y2 = adv_pos
         count = 0
         for i in chess_board[x][y] :
             if i == True:
                 count += 1
-        return count, my_pos
+        factor = abs(x2-x) + abs(y2-y)
+        return count, factor, my_pos
 
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         positions = []
         for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos, max_step))
-        positions.sort(key=lambda x: x[0])
+        positions.sort(key=lambda x: (x[1],x[0]))
 
-        return list(map(lambda c: c[1], positions[:6]))
+        return list(map(lambda c: c[2], positions[:6]))
         
 
     def is_terminal_node(self, depth):

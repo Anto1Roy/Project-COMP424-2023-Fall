@@ -43,6 +43,7 @@ class SecondAgent(Agent):
         Please check the sample implementation in agents/random_agent.py or agents/human_agent.py for more details.
         """
         self.max_step = max_step
+        self.size = chess_board.shape[0] - 1
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
         # Some simple code to help you with timing. Consider checking 
         # time_taken during your search and breaking with the best answer
@@ -56,7 +57,9 @@ class SecondAgent(Agent):
         # print("My AI's turn took ", time_taken, "seconds.")
         # print(f"position , move :  {new_pos} , {self.dir_map[wall]}")
 
-        # dummy return
+        if new_pos == None or wall == None:
+            return self.random_move(chess_board, my_pos, adv_pos, max_step)
+        
         return new_pos, self.dir_map[wall]
     
     #check all possible in a radius of max-depth
@@ -100,7 +103,14 @@ class SecondAgent(Agent):
 
         return area_size
     
-    def calculate_area_size(self, chess_board, start_pos, limit=30):
+    def random_move(self, chess_board, my_pos, adv_pos, max_step):
+        for i in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
+            for j in self.dir_map.keys():
+                if self.check_valid_step(my_pos, i, adv_pos, j, chess_board):
+                    print(i, j)
+                    return i, j
+    
+    def calculate_area_size(self, chess_board, start_pos, limit=50):
         visited = set()
         stack = [start_pos]
         area_size = 0
@@ -135,9 +145,9 @@ class SecondAgent(Agent):
         if action == "u":
             return x > 0 and not chess_board[x, y, 0]
         elif action == "r":
-            return y < chess_board.shape[1] and not chess_board[x, y, 1]
+            return y < self.size and not chess_board[x, y, 1]
         elif action == "d":
-            return x < chess_board.shape[0] and not chess_board[x, y, 2]
+            return x < self.size and not chess_board[x, y, 2]
         elif action == "l":
             return y > 0 and not chess_board[x, y, 3]
         else:
@@ -148,25 +158,28 @@ class SecondAgent(Agent):
         positions = []
         for i in range(-radius, radius):
             for j in range(-radius, radius):
-                if abs(i) + abs(j) <= radius:
+                if abs(i) + abs(j) <= radius and 0 <= (x + i) <= self.size and 0 <= (y + j) <= self.size :
                     positions.append((x + i, y + j))
         return positions
 
     def evaluate_position(self, chess_board, my_pos, adv_pos, max_step):
         x,y = my_pos
+        x2, y2 = adv_pos
         count = 0
         for i in chess_board[x][y] :
             if i == True:
                 count += 1
-        return count, my_pos
+        factor = abs(x2-x) + abs(y2-y)
+        return count, factor, my_pos
 
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         positions = []
         for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos, max_step))
-        positions.sort(key=lambda x: x[0])
-        return list(map(lambda c: c[1], positions[:6]))
+        positions.sort(key=lambda x: (x[0],x[1]))
+
+        return list(map(lambda c: c[2], positions[:6]))
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
