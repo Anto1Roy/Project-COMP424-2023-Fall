@@ -25,7 +25,7 @@ class SecondAgent(Agent):
             "d": 2,
             "l": 3,
         }
-        self.max_depth = 3
+        self.max_depth = 5
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
         """
@@ -147,7 +147,7 @@ class SecondAgent(Agent):
         positions = []
         for i in range(-radius, radius):
             for j in range(-radius, radius):
-                if abs(i) + abs(j) <= radius and i != 0 or j != 0:
+                if abs(i) + abs(j) <= radius:
                     positions.append((x + i, y + j))
         return positions
 
