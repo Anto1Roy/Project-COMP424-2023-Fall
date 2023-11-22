@@ -25,7 +25,7 @@ class SecondAgent(Agent):
             "d": 2,
             "l": 3,
         }
-        self.max_depth = 5
+        self.max_depth = 3
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
         """
@@ -61,8 +61,8 @@ class SecondAgent(Agent):
     
     #check all possible in a radius of max-depth
     def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
-        my_area_size = self.calculate_line_size(chess_board, my_pos) #,max_step)
-        adv_area_size = self.calculate_line_size(chess_board, adv_pos) #, max_step)
+        my_area_size = self.calculate_area_size(chess_board, my_pos) #,max_step)
+        adv_area_size = self.calculate_area_size(chess_board, adv_pos) #, max_step)
 
         return my_area_size - adv_area_size
     
@@ -100,12 +100,13 @@ class SecondAgent(Agent):
 
         return area_size
     
-    def calculate_area_size(self, chess_board, start_pos):
+    def calculate_area_size(self, chess_board, start_pos, limit=30):
         visited = set()
         stack = [start_pos]
         area_size = 0
 
-        while stack:
+        while stack and limit > 0:
+            limit -= 1
             current_pos = stack.pop()
             if current_pos in visited:
                 continue
@@ -165,7 +166,7 @@ class SecondAgent(Agent):
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos, max_step))
         positions.sort(key=lambda x: x[0])
-        return list(map(lambda c: c[1], positions))
+        return list(map(lambda c: c[1], positions[:6]))
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
