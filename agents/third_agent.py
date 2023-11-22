@@ -8,10 +8,8 @@ import time
 from collections import deque
 import numpy as np
 
-
-### Strategy meilleur ici que student agent
-@register_agent("second_agent")
-class SecondAgent(Agent):
+@register_agent("third_agent")
+class ThirdAgent(Agent):
     """
     A dummy class for your implementation. Feel free to use this class to
     add any helper functionalities needed for your agent.
@@ -20,8 +18,8 @@ class SecondAgent(Agent):
     global BOARD_SIZE
 
     def __init__(self):
-        super(SecondAgent, self).__init__()
-        self.name = "SecondAgent"
+        super(ThirdAgent, self).__init__()
+        self.name = "ThirdAgent"
         self.dir_map = {
             "u": 0,
             "r": 1,
@@ -190,20 +188,28 @@ class SecondAgent(Agent):
                     positions.append((x + i, y + j))
         return positions
 
-    def evaluate_position(self, chess_board, my_pos, adv_pos):
-        x,y = my_pos
-        x2, y2 = adv_pos
-        count = 0
-        for i in chess_board[x][y] :
-            if i == True:
-                count += 1
-        factor = abs(x2-x) + abs(y2-y)
-        return count, factor, my_pos
     
-   
+    def three_walls(self, chess_board, my_pos):
+        return np.sum(chess_board[my_pos]) == 3
     
+    def count_available_moves(self, chess_board, pos):
+        move_count = 0
+        for dx, dy in self.moves:
+            new_x, new_y = pos[0] + dx, pos[1] + dy
+            if self.is_valid_position(chess_board, (new_x, new_y)):
+                move_count += 1
+        return move_count
+    
+    def evaluate_pos_new(self, chess_board, my_pos, adv_pos):
+        utility = 0
+        walls = self.count_walls(chess_board)
+        if self.three_walls(chess_board, my_pos): 
+            utility += -100 # we dont want that
+        utility += self.count_available_moves(chess_board, my_pos) * 5
+        utility += (abs(my_pos[0]-adv_pos[0]) + abs(my_pos[1]-adv_pos[1])) * 80/walls # gets less important as the game progresses
+        return utility
 
-    def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
+    def sort_positions_og(self, chess_board, my_pos, adv_pos, max_step):
         positions = []
         for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
@@ -212,7 +218,14 @@ class SecondAgent(Agent):
 
         return list(map(lambda c: c[2], positions[:6]))
     
+    def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
+        positions = []
+        for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
+            if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
+                positions.append((self.evaluate_pos_new(chess_board, pos, adv_pos), pos))
+        positions.sort(key=lambda c: c[0], reverse=True)
 
+        return [pos[1] for pos in positions[:6]]
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
@@ -376,45 +389,3 @@ class SecondAgent(Agent):
         
 
         return new_board
-    
-
-        # def minimax(self, chess_board, my_pos, adv_pos, max_step, depth, alpha, beta, maximizing_player):
-    #     if self.is_terminal_node(depth):
-    #         return self.evaluate_board(chess_board, my_pos, adv_pos), None, None
-
-    #     valid_actions = ["u", "r", "d", "l"]
-
-    #     if maximizing_player:   
-    #         max_eval = float('-inf')
-    #         best_action = None
-    #         for action in valid_actions:
-    #             if(self.valid_action(my_pos, action, chess_board)):
-    #                 new_pos = self.get_new_position(my_pos, action)
-    #                 for wall in valid_actions:
-    #                     new_board = self.simulate_move(chess_board, new_pos, wall)
-    #                     eval, _, _ = self.minimax(new_board, new_pos, adv_pos, max_step, depth - 1, alpha, beta, False)
-    #                     if eval > max_eval:
-    #                         max_eval = eval
-    #                         best_action = (action, wall)
-    #                     alpha = max(alpha, eval)
-    #                     if beta <= alpha:
-    #                         break
-    #         action, wall = best_action
-    #         return max_eval, action, wall
-    #     else:
-    #         min_eval = float('inf')
-    #         best_action = None
-    #         for action in valid_actions:
-    #             if(self.valid_action(adv_pos, action, chess_board)):
-    #                 new_pos = self.get_new_position(adv_pos, action)
-    #                 for wall in valid_actions:
-    #                     new_board = self.simulate_move(chess_board, new_pos, wall)
-    #                     eval, _, _  = self.minimax(new_board, my_pos, new_pos, max_step, depth - 1, alpha, beta, True)
-    #                     if eval < min_eval:
-    #                         min_eval = eval
-    #                         best_action = (action, wall)
-    #                     beta = min(beta, eval)
-    #                     if beta <= alpha:
-    #                         break
-    #         action, wall = best_action
-    #         return min_eval, action, wall
