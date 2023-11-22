@@ -193,7 +193,7 @@ class SecondAgent(Agent):
 
         if maximizing_player:
             max_eval = float('-inf')
-            best_action = None
+            best_action = None, None
             for move in self.sort_positions(chess_board, my_pos,adv_pos, max_step):
                 for wall in self.dir_map.keys():
                     if not self.check_valid_step(my_pos, move, adv_pos, wall, chess_board):
@@ -210,7 +210,7 @@ class SecondAgent(Agent):
             return max_eval, action, wall
         else:
             min_eval = float('inf')
-            best_action = None
+            best_action = None, None
             for move in self.sort_positions(chess_board, adv_pos, my_pos, max_step):
                 for wall in self.dir_map.keys():
                     new_board = self.simulate_move(chess_board, move, wall)
