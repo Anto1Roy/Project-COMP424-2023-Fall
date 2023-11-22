@@ -7,6 +7,7 @@ from copy import deepcopy
 import time
 
 
+### Strategy meilleur ici que student agent
 @register_agent("second_agent")
 class SecondAgent(Agent):
     """
@@ -107,8 +108,7 @@ class SecondAgent(Agent):
         for i in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
             for j in self.dir_map.keys():
                 if self.check_valid_step(my_pos, i, adv_pos, j, chess_board):
-                    print(i, j)
-                    return i, j
+                    return i, self.dir_map[j]
     
     def calculate_area_size(self, chess_board, start_pos, limit=50):
         visited = set()

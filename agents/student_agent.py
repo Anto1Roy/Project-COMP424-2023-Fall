@@ -134,7 +134,7 @@ class StudentAgent(Agent):
         for i in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
             for j in self.dir_map.keys():
                 if self.check_valid_step(my_pos, i, adv_pos, j, chess_board):
-                    return i, j
+                    return i, self.dir_map[j]
     
     # check whether the action is valid
     def valid_action(self, pos, action, chess_board):
