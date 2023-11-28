@@ -104,6 +104,27 @@ class ThirdAgent(Agent):
 
         return area_size
     
+    def calculate_moves_reachable(self, chess_board, start_pos, limit=50):
+        visited = np.zeros_like(chess_board[..., 0], dtype=bool)
+        stack = deque([start_pos])
+        area_size = 0
+        while stack and limit > 0:
+            limit -= 1
+            current_pos = stack.pop()
+            x, y = current_pos
+            if visited[x, y]:
+                continue
+
+            visited[x, y] = True
+            area_size += 1
+
+            for dx, dy in self.moves:
+                new_x, new_y = x + dx, y + dy
+                if self.is_valid_position(chess_board, (new_x, new_y)) and not visited[new_x, new_y]:
+                    stack.append((new_x, new_y))
+
+        return stack
+    
     def random_move(self, chess_board, my_pos, adv_pos, max_step):
         for i in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
             for j in self.dir_map.keys():
@@ -163,7 +184,23 @@ class ThirdAgent(Agent):
         x_max, y_max, _ = chess_board.shape
         return 0 <= x < x_max and 0 <= y < y_max
     
-    
+    def can_end_opponent(self, chess_board, my_pos, adv_pos, max_steps):
+        x, y = adv_pos
+        wall_count = sum(chess_board[x, y])
+
+        if wall_count != 3:
+            return None, None
+        reverse_dir_map = {v: k for k, v in self.dir_map.items()}
+
+        # Check which direction is open and if the agent can place a wall there
+        for dir, (dx, dy) in enumerate(self.moves):
+            if not chess_board[x, y, dir]:  # Check if there's no wall in this direction
+                new_x, new_y = x + dx, y + dy
+                # Check if the new position is valid and doesn't already have a wall
+                if self.is_valid_position(chess_board, (new_x, new_y)) and not chess_board[new_x, new_y, (dir + 2) % 4] and self.check_valid_step(my_pos, (new_x, new_y), adv_pos, reverse_dir_map[dir], chess_board):
+                    return (new_x, new_y), reverse_dir_map[dir]
+
+        return None, None
     
     # check whether the action is valid
     def valid_action(self, pos, action, chess_board):
@@ -200,23 +237,16 @@ class ThirdAgent(Agent):
                 move_count += 1
         return move_count
     
+    
     def evaluate_pos_new(self, chess_board, my_pos, adv_pos):
         utility = 0
         walls = self.count_walls(chess_board)
         if self.three_walls(chess_board, my_pos): 
             utility += -100 # we dont want that
         utility += self.count_available_moves(chess_board, my_pos) * 5
-        utility += (abs(my_pos[0]-adv_pos[0]) + abs(my_pos[1]-adv_pos[1])) * 80/walls # gets less important as the game progresses
+        utility += (abs(my_pos[0]-adv_pos[0]) + abs(my_pos[1]-adv_pos[1])) * walls/100 # gets less important as the game progresses
         return utility
 
-    def sort_positions_og(self, chess_board, my_pos, adv_pos, max_step):
-        positions = []
-        for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
-            if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
-                positions.append(self.evaluate_position(chess_board, pos, adv_pos))
-        positions.sort(key=lambda x: (x[0],x[1]))
-
-        return list(map(lambda c: c[2], positions[:6]))
     
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         positions = []
@@ -225,26 +255,11 @@ class ThirdAgent(Agent):
                 positions.append((self.evaluate_pos_new(chess_board, pos, adv_pos), pos))
         positions.sort(key=lambda c: c[0], reverse=True)
 
-        return [pos[1] for pos in positions[:6]]
+        return [pos[1] for pos in positions[:3]]
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
         return depth == 0
-    
-    # current: for each neighbouring tile
-    #               for each wall
-    #                   evaluate move
-    #                       simulate move
-
-    # optimal: for each evaluated reachable tile
-    #           Ex : k = 3 => 24 
-    #           for each action
-    #               for each wall
-    #                   evaluate move
-    #                       simulate move
-
-    # board = chess_board.copy()
-    # board[my_pos] = how good this position is
 
     def gyuminimax(self, chess_board, my_pos, adv_pos, max_step, depth, alpha, beta, maximizing_player):
         depth = depth - 1
@@ -254,6 +269,9 @@ class ThirdAgent(Agent):
         if maximizing_player:
             max_eval = float('-inf')
             best_action = None, None
+            end_pos, end_wall = self.can_end_opponent(chess_board, my_pos, adv_pos, max_step)
+            if end_pos != None:
+                return max_eval, end_pos, end_wall
             for move in self.sort_positions(chess_board, my_pos, adv_pos, max_step):
                 for wall in self.dir_map.keys():
                     if not self.check_valid_step(my_pos, move, adv_pos, wall, chess_board):
