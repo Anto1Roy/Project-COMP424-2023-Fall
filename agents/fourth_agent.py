@@ -61,7 +61,7 @@ class FourthAgent(Agent):
             expanded_node = root_board.expand(selected_node)
             simulation_result = root_board.simulate(expanded_node)
             root_board.backpropagate(expanded_node, simulation_result)
-            print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
+            #print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
         time_taken = time.time() - start_time
 
         best_child_node = max(root_board.children, key=lambda x: x.visits)
@@ -153,6 +153,7 @@ class Board:
         return current_state.get_score()
 
     def backpropagate(self, node, score):
+        print("backpropagating")
         while node is not None:
             node.visits += 1
             node.score += score if node.maximizing else -score
@@ -181,7 +182,7 @@ class GameState:
 
     def is_terminal(self):
         # Check if the game is in a terminal state
-        return not self.check_valid_move(self.my_pos, self.adv_pos, self.adv_pos, self.current_board, False)
+        return not self.check_valid_path(self.my_pos, self.adv_pos, self.current_board)
     
     # write a function that returns every move such that i + j <= max_step
     def iterate_positions_around(self, x, y, radius):
@@ -306,6 +307,28 @@ class GameState:
                 visited.add(tuple(next_pos))
                 state_queue.append((next_pos, cur_step + 1))
         return is_reached
+    
+    # Example BFS-based implementation of check_valid_path
+    def check_valid_path(self, start_pos, end_pos, chess_board):
+        visited = set()
+        queue = [start_pos]
+
+        while queue:
+            current_pos = queue.pop(0)
+            if current_pos == end_pos:
+                return True
+
+            if current_pos in visited:
+                continue
+
+            visited.add(current_pos)
+
+            for move in self.moves:
+                next_pos = (current_pos[0] + move[0], current_pos[1] + move[1])
+                if self.check_valid_move(current_pos, next_pos, None, chess_board, False):
+                    queue.append(next_pos)
+
+        return False
     
     def check_valid_step(self, start_pos, end_pos, adv_pos, barrier_dir, chess_board):
         """

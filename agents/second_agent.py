@@ -18,6 +18,7 @@ class SecondAgent(Agent):
     """
 
     global BOARD_SIZE
+    global counter
 
     def __init__(self):
         super(SecondAgent, self).__init__()
@@ -31,6 +32,7 @@ class SecondAgent(Agent):
         self.max_depth = 3
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
+        global counter
         """
         Implement the step function of your agent here.
         You can use the following variables to access the chess board:
@@ -48,10 +50,12 @@ class SecondAgent(Agent):
         self.max_step = max_step
         self.size = chess_board.shape[0] - 1
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
+        counter = 0
         # Some simple code to help you with timing. Consider checking
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
         start_time = time.time()
+        # print(MaxFlow(chess_board).ford_fulkerson(my_pos, adv_pos))
         _, new_pos, wall = self.gyuminimax(
             chess_board,
             my_pos,
@@ -61,7 +65,9 @@ class SecondAgent(Agent):
             float("-inf"),
             float("inf"),
             True,
+            start_time
         )
+        print("visited : " + str(counter))
         time_taken = time.time() - start_time
 
         # new_pos = self.get_new_position(my_pos, new_pos)
@@ -219,6 +225,7 @@ class SecondAgent(Agent):
         return count, factor, my_pos
 
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
+        current = time.time()
         positions = []
         for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board):
@@ -227,15 +234,14 @@ class SecondAgent(Agent):
 
         return list(map(lambda c: c[2], positions[:6]))
 
-    def is_terminal_node(self, depth):
+    def is_terminal_node(self, depth, start_time):
         # Add your own conditions to check if it's a terminal node
-        return depth == 0
+        return depth <= 0 or time.time() - start_time > 1.9
 
     # current: for each neighbouring tile
     #               for each wall
     #                   evaluate move
     #                       simulate move
-
     # optimal: for each evaluated reachable tile
     #           Ex : k = 3 => 24
     #           for each action
@@ -256,9 +262,11 @@ class SecondAgent(Agent):
         alpha,
         beta,
         maximizing_player,
+        start_time,
     ):
-        depth = depth - 1
-        if self.is_terminal_node(depth):
+        global counter
+        counter += 1
+        if self.is_terminal_node(depth, start_time):
             return self.evaluate_board(chess_board, my_pos, adv_pos), None, None
 
         current_eval = self.evaluate_board(chess_board, my_pos, adv_pos)
@@ -282,6 +290,7 @@ class SecondAgent(Agent):
                         alpha,
                         beta,
                         False,
+                        start_time
                     )
                     eval += current_eval
                     if eval > max_eval:
@@ -303,7 +312,7 @@ class SecondAgent(Agent):
                         continue
                     new_board = self.simulate_move(chess_board, move, wall)
                     eval, _, _ = self.gyuminimax(
-                        new_board, my_pos, move, max_step, depth - 1, alpha, beta, True
+                        new_board, my_pos, move, max_step, depth - 1, alpha, beta, True, start_time
                     )
                     eval += current_eval
                     if eval < min_eval:
@@ -415,44 +424,81 @@ class SecondAgent(Agent):
 
         return new_board
 
-        # def minimax(self, chess_board, my_pos, adv_pos, max_step, depth, alpha, beta, maximizing_player):
+class MaxFlow:
+    def __init__(self, graph):
+        self.graph = graph
+        self.n = len(graph)
+        self.m = len(graph[0])
 
-    #     if self.is_terminal_node(depth):
-    #         return self.evaluate_board(chess_board, my_pos, adv_pos), None, None
+    def ford_fulkerson(self, source, sink):
+        parent = [[(-1, -1) for _ in range(self.m)] for _ in range(self.n)]
+        max_flow = 0
 
-    #     valid_actions = ["u", "r", "d", "l"]
+        while True:
+            # Find augmenting path using BFS
+            path_flow = float('inf')
+            visited = [[False] * self.m for _ in range(self.n)]
+            queue = deque([(source, source)])
+            visited[source[0]][source[1]] = True
 
-    #     if maximizing_player:
-    #         max_eval = float('-inf')
-    #         best_action = None
-    #         for action in valid_actions:
-    #             if(self.valid_action(my_pos, action, chess_board)):
-    #                 new_pos = self.get_new_position(my_pos, action)
-    #                 for wall in valid_actions:
-    #                     new_board = self.simulate_move(chess_board, new_pos, wall)
-    #                     eval, _, _ = self.minimax(new_board, new_pos, adv_pos, max_step, depth - 1, alpha, beta, False)
-    #                     if eval > max_eval:
-    #                         max_eval = eval
-    #                         best_action = (action, wall)
-    #                     alpha = max(alpha, eval)
-    #                     if beta <= alpha:
-    #                         break
-    #         action, wall = best_action
-    #         return max_eval, action, wall
-    #     else:
-    #         min_eval = float('inf')
-    #         best_action = None
-    #         for action in valid_actions:
-    #             if(self.valid_action(adv_pos, action, chess_board)):
-    #                 new_pos = self.get_new_position(adv_pos, action)
-    #                 for wall in valid_actions:
-    #                     new_board = self.simulate_move(chess_board, new_pos, wall)
-    #                     eval, _, _  = self.minimax(new_board, my_pos, new_pos, max_step, depth - 1, alpha, beta, True)
-    #                     if eval < min_eval:
-    #                         min_eval = eval
-    #                         best_action = (action, wall)
-    #                     beta = min(beta, eval)
-    #                     if beta <= alpha:
-    #                         break
-    #         action, wall = best_action
-    #         return min_eval, action, wall
+            while queue:
+                u, prev = queue.popleft()
+                for v in self.get_adjacent_edges(u):
+                    if not visited[v[0]][v[1]]:
+                        queue.append((v, u))
+                        visited[v[0]][v[1]] = True
+                        parent[v[0]][v[1]] = (u, prev)
+                        path_flow = 1  # Capacity is always 1
+
+            if not visited[sink[0]][sink[1]]:
+                break  # No more augmenting paths
+
+            # Update residual capacities along the path
+            max_flow += path_flow
+            current = sink
+            while current != source:
+                u, prev = parent[current[0]][current[1]]
+                self.update_capacity(u, current)
+                current = u
+
+        return max_flow
+
+    def min_cut(self, source):
+        # Perform DFS to find nodes reachable from source after max flow
+        visited = [[False] * self.m for _ in range(self.n)]
+        stack = [source]
+        visited[source[0]][source[1]] = True
+
+        while stack:
+            u = stack.pop()
+            for v in self.get_adjacent_edges(u):
+                if not visited[v[0]][v[1]]:
+                    stack.append(v)
+                    visited[v[0]][v[1]] = True
+
+        # Return the set of nodes reachable from the source
+        return {(i, j) for i in range(self.n) for j in range(self.m) if visited[i][j]}
+
+    def get_adjacent_edges(self, u):
+        i, j = u
+        edges = []
+        if i > 0 and not self.graph[i-1, j, 2]:  # Up
+            edges.append((i-1, j))
+        if i < self.n - 1 and not self.graph[i, j, 0]:  # Down
+            edges.append((i+1, j))
+        if j > 0 and not self.graph[i, j-1, 1]:  # Left
+            edges.append((i, j-1))
+        if j < self.m - 1 and not self.graph[i, j, 3]:  # Right
+            edges.append((i, j+1))
+        return edges
+
+    def update_capacity(self, u, v):
+        i, j = u
+        if u[0] == v[0] - 1:  # Move Up
+            self.graph[v[0], v[1], 0] = True
+        elif u[0] == v[0] + 1:  # Move Down
+            self.graph[u[0], u[1], 0] = True
+        elif u[1] == v[1] - 1:  # Move Left
+            self.graph[v[0], v[1], 3] = True
+        elif u[1] == v[1] + 1:  # Move Right
+            self.graph[u[0], u[1], 1] = True
