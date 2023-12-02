@@ -62,7 +62,7 @@ class FourthAgent(Agent):
             expanded_node = root_board.expand(selected_node)
             simulation_result = root_board.simulate(expanded_node)
             root_board.backpropagate(expanded_node, simulation_result)
-            #print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
+            print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
         time_taken = time.time() - start_time
 
         best_child_node = max(root_board.children, key=lambda x: x.visits)
@@ -79,7 +79,7 @@ class FourthAgent(Agent):
         #             board.state.max_step = max_step
         #             board.state.maximization = True
         #             return board.state
-        return GameState(chess_board, my_pos, adv_pos, max_step, True, 8)
+        return GameState(chess_board, my_pos, adv_pos, max_step, True, 6)
     
 class Board:
     def __init__(self, game_state, maximizing, parent=None):
@@ -100,7 +100,7 @@ class Board:
     def select(self):
         while not self.state.is_terminal():
             # this shoulds be a probability since we dont want to explore everything
-            if (len(self.children) <= len(self.state.posible_moves) and random.random() < 0.5) or len(self.children) == 0:
+            if (len(self.children) <= len(self.state.posible_moves) and random.random() < 0.7) or len(self.children) == 0:
                 return self.expand(self)
             else:
                 return self.best_child(self)
@@ -182,7 +182,7 @@ class GameState:
 
     def is_terminal(self):
         # Check if the game is in a terminal state
-        return not self.check_valid_move(self.my_pos, self.adv_pos, self.adv_pos, self.current_board, False)
+        return not self.check_valid_move(self.my_pos, self.adv_pos, self.adv_pos, self.current_board, False) or self.max_depth == 0
     
     # write a function that returns every move such that i + j <= max_step
     def iterate_positions_around(self, x, y, radius):
@@ -228,7 +228,6 @@ class GameState:
     
     def perform_action(self, move, action):
         x, y = move
-        self.my_pos = move
         new_board = self.current_board.copy()
         new_board[x, y, self.dir_map[action]] = True
         return GameState(new_board, move, self.adv_pos, self.max_step, not self.maximizing, self.max_depth-1) if self.maximizing else GameState(new_board, self.my_pos, move, self.max_step, not self.maximizing, self.max_depth-1)
@@ -237,10 +236,14 @@ class GameState:
         # Create a copy of the current state
         return 0
 
-    def get_score(self):
-        current = time.time()
-        my_area_size = self.calculate_area_size(self.current_board, self.my_pos)  # ,max_step)
-        adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos)  # , max_step)
+    def get_score(self, finish = True):
+        if finish:
+            my_area_size = self.calculate_area_size(self.current_board, self.my_pos)
+            adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos)
+        else:
+            my_area_size = self.calculate_area_size(self.current_board, self.my_pos, self.max_step)
+            adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos, self.max_step)
+
         return my_area_size - adv_area_size
     
     # with numpy shit

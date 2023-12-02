@@ -81,7 +81,13 @@ class SecondAgent(Agent):
         return new_pos, self.dir_map[wall]
 
     # check all possible in a radius of max-depth
-    def evaluate_board(self, chess_board, my_pos, adv_pos):
+    def evaluate_board(self, chess_board, my_pos, adv_pos, max_step):
+        my_area_size = self.calculate_area_size_reachable(chess_board, my_pos, max_step)
+        adv_area_size = self.calculate_area_size_reachable(chess_board, adv_pos, max_step)
+
+        return my_area_size - adv_area_size
+    
+    def evaluate_board_finish(self, chess_board, my_pos, adv_pos):
         my_area_size = self.calculate_area_size(chess_board, my_pos)  # ,max_step)
         adv_area_size = self.calculate_area_size(chess_board, adv_pos)  # , max_step)
 
@@ -236,21 +242,13 @@ class SecondAgent(Agent):
 
     def is_terminal_node(self, depth, start_time, my_pos, adv_pos, chess_board):
         # Add your own conditions to check if it's a terminal node
-        return not (depth > 0 and time.time() - start_time <= 1.9 and self.check_valid_move(my_pos, adv_pos, adv_pos, chess_board, False))
+        return 1 if depth == 0 or time.time() - start_time > 1.9 else (0 if self.check_valid_move(my_pos, adv_pos, adv_pos, chess_board, False) else -1)
 
-    # current: for each neighbouring tile
-    #               for each walls
-    #                   evaluate move
-    #                       simulate move
-    # optimal: for each evaluated reachable tile
-    #           Ex : k = 3 => 24
-    #           for each action
-    #               for each wall
-    #                   evaluate move
-    #                       simulate move
-
-    # board = chess_board.copy()
-    # board[my_pos] = how good this position is
+    # if score is 1 vs 98 it biases the algorithm to go towards the 98 instead of going to the action with the most victories in total
+    # live
+    # being between the middle and the other agent is important
+    # how to check for max flow in end game
+    # a star path from my pos to adv pos
 
     def gyuminimax(
         self,
@@ -266,10 +264,14 @@ class SecondAgent(Agent):
     ):
         global counter
         counter += 1
-        if self.is_terminal_node(depth, start_time, my_pos, adv_pos, chess_board):
-            return self.evaluate_board(chess_board, my_pos, adv_pos), None, None
-
-        current_eval = self.evaluate_board(chess_board, my_pos, adv_pos)
+        result = self.is_terminal_node(depth, start_time, my_pos, adv_pos, chess_board)
+        if result == 1:
+            return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None, None 
+        elif result == 0:
+            self.evaluate_board_finish(chess_board, my_pos, adv_pos), None, None
+        
+        # does this make sense?
+        current_eval = self.evaluate_board(chess_board, my_pos, adv_pos, max_step) if maximizing_player else self.evaluate_board(chess_board, adv_pos, my_pos, max_step)
 
         if maximizing_player:
             max_eval = float("-inf")
@@ -292,6 +294,7 @@ class SecondAgent(Agent):
                         False,
                         start_time
                     )
+                    # does this make sense?
                     eval += current_eval
                     if eval > max_eval:
                         max_eval = eval
@@ -314,6 +317,7 @@ class SecondAgent(Agent):
                     eval, _, _ = self.gyuminimax(
                         new_board, my_pos, move, max_step, depth - 1, alpha, beta, True, start_time
                     )
+                    # does this make sense?
                     eval += current_eval
                     if eval < min_eval:
                         min_eval = eval
