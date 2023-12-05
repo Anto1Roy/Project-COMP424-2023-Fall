@@ -1,5 +1,6 @@
 # Student agent: Add your own agent here
 import math
+from queue import PriorityQueue
 import random
 from agents.agent import Agent
 from store import register_agent
@@ -20,8 +21,10 @@ class FourthAgent(Agent):
     """
 
     global BOARD_SIZE
+    global turn
 
     def __init__(self):
+        global turn
         super(FourthAgent, self).__init__()
         self.name = "FourthAgent"
         self.dir_map = {
@@ -30,9 +33,12 @@ class FourthAgent(Agent):
             "d": 2,
             "l": 3,
         }
+        turn = 0
         self.futures_game_states = []
 
+
     def step(self, chess_board, my_pos, adv_pos, max_step):
+        global turn
         """
         Implement the step function of your agent here.
         You can use the following variables to access the chess board:
@@ -47,6 +53,8 @@ class FourthAgent(Agent):
 
         Please check the sample implementation in agents/random_agent.py or agents/human_agent.py for more details.
         """
+        turn += 1
+        start_time = time.time()
         state = self.get_state(chess_board, my_pos, adv_pos, max_step)
         state.max_step = max_step
         root_board = Board(state, True)
@@ -54,31 +62,37 @@ class FourthAgent(Agent):
         # Some simple code to help you with timing. Consider checking
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
-        start_time = time.time()
         # we get around 50 visits, where should we search?
         while (time.time() - start_time) < 1.9:
             selected_node = root_board.select()
             expanded_node = root_board.expand(selected_node)
             simulation_result = root_board.simulate(expanded_node)
             root_board.backpropagate(expanded_node, simulation_result)
-            #print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
+            # print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
         time_taken = time.time() - start_time
 
-        best_child_node = max(root_board.children, key=lambda x: x.visits)
+        best_child_node = max(root_board.children, key=lambda x: x.score / (x.visits + 1e-6))
         self.futures_game_states = []
         self.futures_game_states.append(best_child_node.children)
-        pos, dir = best_child_node.state.last_action
+        pos, dir = best_child_node.state.last_action # we want to return the best action not the last one
 
         return pos, self.dir_map[dir]
     
     def get_state(self, chess_board, my_pos, adv_pos, max_step):
-        # for boards in self.futures_game_states:
-        #     for board in boards:
-        #         if board.state.my_pos == my_pos and board.state.adv_pos == adv_pos:
-        #             board.state.max_step = max_step
-        #             board.state.maximization = True
-        #             return board.state
-        return GameState(chess_board, my_pos, adv_pos, max_step, True, 8)
+        for boards in self.futures_game_states:
+            # solve this
+            for board in boards:
+                #print(str(board.state.my_pos == adv_pos) + " : " + str(board.state.adv_pos == my_pos))
+                #print("or : " + str(board.state.my_pos == my_pos) + " : " + str(board.state.adv_pos == adv_pos))
+                if board.state.my_pos == adv_pos and board.state.adv_pos == my_pos: # is fast
+                    print("maybe")
+                    if not np.any(board.state.current_board != chess_board): # is slow
+                        board.state.max_step = max_step
+                        board.state.maximization = True
+                        board.state.max_depth = 6
+                        print("knew the state")
+                        return board.state  
+        return GameState(chess_board, my_pos, adv_pos, max_step, True, 6)
     
 class Board:
     def __init__(self, game_state, maximizing, parent=None):
@@ -99,7 +113,7 @@ class Board:
     def select(self):
         while not self.state.is_terminal():
             # this shoulds be a probability since we dont want to explore everything
-            if (len(self.children) <= len(self.state.posible_moves) and random.random() < 0.5) or len(self.children) == 0:
+            if (len(self.children) <= len(self.state.posible_moves) and random.random() < 0.7) or len(self.children) == 0:
                 return self.expand(self)
             else:
                 return self.best_child(self)
@@ -114,19 +128,20 @@ class Board:
                if not (self.state.check_valid_step(
                         self.state.my_pos, move, self.state.adv_pos, wall, self.state.current_board
                     ) if self.maximizing else self.state.check_valid_step(
-                        self.state.adv_pos, move, self.state.mypos, wall, self.state.current_board
+                        self.state.adv_pos, move, self.state.my_pos, wall, self.state.current_board
                     )):
                 continue 
             new_state = node.state.perform_action(move, wall)
-            new_state.last_action = (move, wall)
+            new_state.last_action = move, wall
             new_node = Board(new_state, not node.maximizing, parent=node)
             node.children.append(new_node)
             return new_node
         else:
             return self.best_child(node)
-
+        
     def best_child(self, node):
-        exploration_weight = 1.4  # Adjust this parameter
+        global turn
+        exploration_weight = 1.4 / (1.02 ** turn)  # Adjust this parameter
         children_with_scores = [(child, child.state.get_score() / (child.visits + 1e-6) + exploration_weight * math.sqrt(math.log(node.visits + 1) / (child.visits + 1e-6))) for child in node.children]
         return max(children_with_scores, key=lambda x: x[1])[0] if len(children_with_scores) > 0 else node
 
@@ -147,13 +162,12 @@ class Board:
                     )):
                     continue
                 current_state = current_state.perform_action(move, wall)
-                current_state.last_action = (move, wall)
+                current_state.last_action = move, wall
                 if current_state.is_terminal():
                     break
         return current_state.get_score()
 
     def backpropagate(self, node, score):
-        print("backpropagating")
         while node is not None:
             node.visits += 1
             node.score += score if node.maximizing else -score
@@ -182,7 +196,7 @@ class GameState:
 
     def is_terminal(self):
         # Check if the game is in a terminal state
-        return not self.check_valid_path(self.my_pos, self.adv_pos, self.current_board)
+        return not self.check_valid_move(self.my_pos, self.adv_pos, self.adv_pos, self.current_board, False) or self.max_depth == 0
     
     # write a function that returns every move such that i + j <= max_step
     def iterate_positions_around(self, x, y, radius):
@@ -220,28 +234,30 @@ class GameState:
         return list(map(lambda c: c[2], positions))
     
     def next_actions(self):
-        self.current_index += 5
-        return [position for position in self.posible_moves if self.posible_moves.index(position) >= self.current_index - 5 and self.posible_moves.index(position) < self.current_index]
-
+        number_of_actions = len(self.posible_moves)
+        return [self.posible_moves.pop(i) for i in range(5) if i < number_of_actions - 1]
+    
     def next_action(self):
-        self.current_index += 1
-        return self.posible_moves[self.current_index - 1] if self.current_index <= len(self.posible_moves) else None
+        return self.posible_moves.pop(0) if len(self.posible_moves) > 0 else None
     
     def perform_action(self, move, action):
         x, y = move
-        self.my_pos = move
         new_board = self.current_board.copy()
         new_board[x, y, self.dir_map[action]] = True
-        return GameState(new_board, move, self.adv_pos, self.max_step, not self.maximizing, self.max_depth-1) if self.maximizing else GameState(new_board, self.my_pos, move, self.max_step, not self.maximizing, self.max_depth-1)
+        return GameState(new_board, move, self.adv_pos, self.max_step, not self.maximizing, self.max_depth-1)
 
     def clone(self):
         # Create a copy of the current state
         return 0
 
-    def get_score(self):
-        current = time.time()
-        my_area_size = self.calculate_area_size(self.current_board, self.my_pos)  # ,max_step)
-        adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos)  # , max_step)
+    def get_score(self, finish = True):
+        if finish:
+            my_area_size = self.calculate_area_size(self.current_board, self.my_pos)
+            adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos)
+        else:
+            my_area_size = self.calculate_area_size(self.current_board, self.my_pos, self.max_step)
+            adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos, self.max_step)
+
         return my_area_size - adv_area_size
     
     # with numpy shit
@@ -271,68 +287,50 @@ class GameState:
         return area_size
     
     def check_valid_move(self, start_pos, end_pos, adv_pos, chess_board, limit):
-        """
-        Check if the step the agent takes is valid (reachable and within max steps).
+        
+        if np.array_equal(start_pos, end_pos):
+            return True
 
-        Parameters
-        ----------
-        start_pos : tuple
-            The start position of the agent.
-        end_pos : np.ndarray
-            The end position of the agent.
-        """
-        current = time.time()
-        # BFS
-        state_queue = [(start_pos, 0)]
+        # A* algorithm
+        state_queue = PriorityQueue()
+        state_queue.put((0, start_pos, 0))  # (priority, position, cost)
         visited = {tuple(start_pos)}
         is_reached = False
-        while state_queue and not is_reached:
-            cur_pos, cur_step = state_queue.pop(0)
+
+        while not state_queue.empty() and not is_reached:
+            _, cur_pos, cur_cost = state_queue.get()
             r, c = cur_pos
-            if cur_step == self.max_step and not limit:
+
+            if cur_cost == self.max_step and limit:
                 break
+
             for dir, move in enumerate(self.moves):
                 if chess_board[r, c, dir]:
                     continue
+
                 next_pos = (cur_pos[0] + move[0], cur_pos[1] + move[1])
-                if (np.array_equal(next_pos, adv_pos) or tuple(next_pos) in visited):
-                    if np.array_equal(adv_pos, end_pos):
-                        is_reached = True
-                        break
+
+                if (np.array_equal(next_pos, adv_pos) and limit) or tuple(next_pos) in visited:
                     continue
+
                 if np.array_equal(next_pos, end_pos):
                     is_reached = True
                     break
 
                 visited.add(tuple(next_pos))
-                state_queue.append((next_pos, cur_step + 1))
+                priority = cur_cost + 1 + self.heuristic(next_pos, adv_pos)
+                state_queue.put((priority, next_pos, cur_cost + 1))
+
         return is_reached
     
-    # Example BFS-based implementation of check_valid_path
-    def check_valid_path(self, start_pos, end_pos, chess_board):
-        visited = set()
-        queue = [start_pos]
-
-        while queue:
-            current_pos = queue.pop(0)
-            if current_pos == end_pos:
-                return True
-
-            if current_pos in visited:
-                continue
-
-            visited.add(current_pos)
-
-            for move in self.moves:
-                next_pos = (current_pos[0] + move[0], current_pos[1] + move[1])
-                if self.check_valid_move(current_pos, next_pos, None, chess_board, False):
-                    queue.append(next_pos)
-
-        return False
     
+    def heuristic(self, pos, adv_pos):
+
+        return abs(pos[0] - adv_pos[0]) + abs(pos[1] - adv_pos[1])
+
     def check_valid_step(self, start_pos, end_pos, adv_pos, barrier_dir, chess_board):
         """
-        Check if the step the agent takes is valid (reachable and within max steps).
+        Check if the step the agent takes is valid (reachable and within max steps) using A* algorithm.
 
         Parameters
         ----------
@@ -342,34 +340,47 @@ class GameState:
             The end position of the agent.
         barrier_dir : int
             The direction of the barrier.
+
+        Returns
+        -------
+        bool
+            True if the step is valid, False otherwise.
         """
-        current = time.time()
-        # Endpoint already has barrier or is border
+          # Endpoint already has barrier or is border
         r, c = end_pos
         if chess_board[r, c, self.dir_map[barrier_dir]]:
             return False
         if np.array_equal(start_pos, end_pos):
             return True
 
-        # BFS
-        state_queue = [(start_pos, 0)]
+        # A* algorithm
+        state_queue = PriorityQueue()
+        state_queue.put((0, start_pos, 0))  # (priority, position, cost)
         visited = {tuple(start_pos)}
         is_reached = False
-        while state_queue and not is_reached:
-            cur_pos, cur_step = state_queue.pop(0)
+
+        while not state_queue.empty() and not is_reached:
+            _, cur_pos, cur_cost = state_queue.get()
             r, c = cur_pos
-            if cur_step == self.max_step:
+
+            if cur_cost == self.max_step:
                 break
+
             for dir, move in enumerate(self.moves):
                 if chess_board[r, c, dir]:
                     continue
+
                 next_pos = (cur_pos[0] + move[0], cur_pos[1] + move[1])
+
                 if np.array_equal(next_pos, adv_pos) or tuple(next_pos) in visited:
                     continue
+
                 if np.array_equal(next_pos, end_pos):
                     is_reached = True
                     break
 
                 visited.add(tuple(next_pos))
-                state_queue.append((next_pos, cur_step + 1))
+                priority = cur_cost + 1 + self.heuristic(next_pos, adv_pos)
+                state_queue.put((priority, next_pos, cur_cost + 1))
+
         return is_reached
