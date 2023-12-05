@@ -156,28 +156,8 @@ class ThirdAgent(Agent):
     
     ## op np maniere de compter les walls
     def count_walls(self, chess_board):
-        return np.sum(chess_board)
+        return np.sum(chess_board, dtype=bool)
 
-    
-    def calculate_area_size_og(self, chess_board, start_pos, limit=50):
-        visited = set()
-        stack = deque([start_pos])
-        area_size = 0
-        while stack and limit > 0:
-            limit -= 1
-            current_pos = stack.pop()
-            if current_pos in visited:
-                continue
-
-            visited.add(current_pos)
-            area_size += 1
-
-            for direction in ["u", "r", "d", "l"]:
-                new_x, new_y = self.get_new_position(current_pos, direction)
-                if self.is_valid_position(chess_board, (new_x, new_y)) and (new_x, new_y) not in visited:
-                    stack.append((new_x, new_y))
-
-        return area_size
 
     def is_valid_position(self, chess_board, pos):
         x, y = pos
@@ -227,7 +207,7 @@ class ThirdAgent(Agent):
 
     
     def three_walls(self, chess_board, my_pos):
-        return np.sum(chess_board[my_pos]) == 3
+        return np.sum(chess_board[my_pos], dtype=bool) == 3
     
     def count_available_moves(self, chess_board, pos):
         move_count = 0
@@ -244,7 +224,7 @@ class ThirdAgent(Agent):
         if self.three_walls(chess_board, my_pos): 
             utility += -100 # we dont want that
         utility += self.count_available_moves(chess_board, my_pos) * 5
-        utility += (abs(my_pos[0]-adv_pos[0]) + abs(my_pos[1]-adv_pos[1])) * walls/100 # gets less important as the game progresses
+        utility += (abs(my_pos[0]-adv_pos[0]) + abs(my_pos[1]-adv_pos[1])) * 25/walls # gets less important as the game progresses
         return utility
 
     
@@ -255,7 +235,7 @@ class ThirdAgent(Agent):
                 positions.append((self.evaluate_pos_new(chess_board, pos, adv_pos), pos))
         positions.sort(key=lambda c: c[0], reverse=True)
 
-        return [pos[1] for pos in positions[:3]]
+        return [pos[1] for pos in positions[:6]]
 
     def is_terminal_node(self, depth):
         # Add your own conditions to check if it's a terminal node
