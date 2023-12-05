@@ -21,8 +21,10 @@ class FourthAgent(Agent):
     """
 
     global BOARD_SIZE
+    global turn
 
     def __init__(self):
+        global turn
         super(FourthAgent, self).__init__()
         self.name = "FourthAgent"
         self.dir_map = {
@@ -31,9 +33,12 @@ class FourthAgent(Agent):
             "d": 2,
             "l": 3,
         }
+        turn = 0
         self.futures_game_states = []
 
+
     def step(self, chess_board, my_pos, adv_pos, max_step):
+        global turn
         """
         Implement the step function of your agent here.
         You can use the following variables to access the chess board:
@@ -48,6 +53,8 @@ class FourthAgent(Agent):
 
         Please check the sample implementation in agents/random_agent.py or agents/human_agent.py for more details.
         """
+        turn += 1
+        start_time = time.time()
         state = self.get_state(chess_board, my_pos, adv_pos, max_step)
         state.max_step = max_step
         root_board = Board(state, True)
@@ -55,30 +62,36 @@ class FourthAgent(Agent):
         # Some simple code to help you with timing. Consider checking
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
-        start_time = time.time()
         # we get around 50 visits, where should we search?
         while (time.time() - start_time) < 1.9:
             selected_node = root_board.select()
             expanded_node = root_board.expand(selected_node)
             simulation_result = root_board.simulate(expanded_node)
             root_board.backpropagate(expanded_node, simulation_result)
-            print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
+            # print("time : " + str(time.time() - start_time) + " visits : " + str(root_board.visits))
         time_taken = time.time() - start_time
 
-        best_child_node = max(root_board.children, key=lambda x: x.visits)
+        best_child_node = max(root_board.children, key=lambda x: x.score / (x.visits + 1e-6))
         self.futures_game_states = []
         self.futures_game_states.append(best_child_node.children)
-        pos, dir = best_child_node.state.last_action
+        pos, dir = best_child_node.state.last_action # we want to return the best action not the last one
 
         return pos, self.dir_map[dir]
     
     def get_state(self, chess_board, my_pos, adv_pos, max_step):
-        # for boards in self.futures_game_states:
-        #     for board in boards:
-        #         if board.state.my_pos == my_pos and board.state.adv_pos == adv_pos:
-        #             board.state.max_step = max_step
-        #             board.state.maximization = True
-        #             return board.state
+        for boards in self.futures_game_states:
+            # solve this
+            for board in boards:
+                #print(str(board.state.my_pos == adv_pos) + " : " + str(board.state.adv_pos == my_pos))
+                #print("or : " + str(board.state.my_pos == my_pos) + " : " + str(board.state.adv_pos == adv_pos))
+                if board.state.my_pos == adv_pos and board.state.adv_pos == my_pos: # is fast
+                    print("maybe")
+                    if not np.any(board.state.current_board != chess_board): # is slow
+                        board.state.max_step = max_step
+                        board.state.maximization = True
+                        board.state.max_depth = 6
+                        print("knew the state")
+                        return board.state  
         return GameState(chess_board, my_pos, adv_pos, max_step, True, 6)
     
 class Board:
@@ -115,19 +128,20 @@ class Board:
                if not (self.state.check_valid_step(
                         self.state.my_pos, move, self.state.adv_pos, wall, self.state.current_board
                     ) if self.maximizing else self.state.check_valid_step(
-                        self.state.adv_pos, move, self.state.mypos, wall, self.state.current_board
+                        self.state.adv_pos, move, self.state.my_pos, wall, self.state.current_board
                     )):
                 continue 
             new_state = node.state.perform_action(move, wall)
-            new_state.last_action = (move, wall)
+            new_state.last_action = move, wall
             new_node = Board(new_state, not node.maximizing, parent=node)
             node.children.append(new_node)
             return new_node
         else:
             return self.best_child(node)
-
+        
     def best_child(self, node):
-        exploration_weight = 1.4  # Adjust this parameter
+        global turn
+        exploration_weight = 1.4 / (1.02 ** turn)  # Adjust this parameter
         children_with_scores = [(child, child.state.get_score() / (child.visits + 1e-6) + exploration_weight * math.sqrt(math.log(node.visits + 1) / (child.visits + 1e-6))) for child in node.children]
         return max(children_with_scores, key=lambda x: x[1])[0] if len(children_with_scores) > 0 else node
 
@@ -148,7 +162,7 @@ class Board:
                     )):
                     continue
                 current_state = current_state.perform_action(move, wall)
-                current_state.last_action = (move, wall)
+                current_state.last_action = move, wall
                 if current_state.is_terminal():
                     break
         return current_state.get_score()
@@ -230,7 +244,7 @@ class GameState:
         x, y = move
         new_board = self.current_board.copy()
         new_board[x, y, self.dir_map[action]] = True
-        return GameState(new_board, move, self.adv_pos, self.max_step, not self.maximizing, self.max_depth-1) if self.maximizing else GameState(new_board, self.my_pos, move, self.max_step, not self.maximizing, self.max_depth-1)
+        return GameState(new_board, move, self.adv_pos, self.max_step, not self.maximizing, self.max_depth-1)
 
     def clone(self):
         # Create a copy of the current state
