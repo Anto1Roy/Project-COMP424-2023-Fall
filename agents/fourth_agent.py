@@ -82,17 +82,14 @@ class FourthAgent(Agent):
         for boards in self.futures_game_states:
             # solve this
             for board in boards:
-                #print(str(board.state.my_pos == adv_pos) + " : " + str(board.state.adv_pos == my_pos))
-                #print("or : " + str(board.state.my_pos == my_pos) + " : " + str(board.state.adv_pos == adv_pos))
-                if board.state.my_pos == adv_pos and board.state.adv_pos == my_pos: # is fast
-                    print("maybe")
-                    if not np.any(board.state.current_board != chess_board): # is slow
+                if board.state.my_pos == my_pos and board.state.adv_pos == adv_pos: # is fast
+                    if not np.any(board.state.current_board != chess_board): # is slow -> wall autour de adv_pos
                         board.state.max_step = max_step
                         board.state.maximization = True
                         board.state.max_depth = 6
                         print("knew the state")
                         return board.state  
-        return GameState(chess_board, my_pos, adv_pos, max_step, True, 6)
+        return GameState(chess_board, my_pos, adv_pos, max_step, 6)
     
 class Board:
     def __init__(self, game_state, maximizing, parent=None):
@@ -113,35 +110,30 @@ class Board:
     def select(self):
         while not self.state.is_terminal():
             # this shoulds be a probability since we dont want to explore everything
-            if (len(self.children) <= len(self.state.posible_moves) and random.random() < 0.7) or len(self.children) == 0:
+            if (len(self.children) <= len(self.state.posible_moves) and random.random() < (0.6 + 1.05 ** turn)) or len(self.children) == 0:
                 return self.expand(self)
             else:
                 return self.best_child(self)
     
     def is_terminal(self):
         return self.state.is_terminal()
-
+    
     def expand(self, node):
-        move = node.state.next_action()
-        if move:
-            for wall in self.dir_map.keys():
-               if not (self.state.check_valid_step(
-                        self.state.my_pos, move, self.state.adv_pos, wall, self.state.current_board
-                    ) if self.maximizing else self.state.check_valid_step(
-                        self.state.adv_pos, move, self.state.my_pos, wall, self.state.current_board
-                    )):
-                continue 
-            new_state = node.state.perform_action(move, wall)
-            new_state.last_action = move, wall
-            new_node = Board(new_state, not node.maximizing, parent=node)
-            node.children.append(new_node)
-            return new_node
-        else:
-            return self.best_child(node)
+        for _ in range(5):
+            move = node.state.next_action()
+            if move:
+                for wall in self.dir_map.keys():
+                    if not self.state.check_valid_step(self.state.my_pos, move, self.state.adv_pos, wall, self.state.current_board):
+                        continue 
+                    new_state = node.state.perform_action(move, wall)
+                    new_state.last_action = move, wall
+                    new_node = Board(new_state, not node.maximizing, parent=node)
+                    node.children.append(new_node)
+        return self.best_child(node)
         
     def best_child(self, node):
         global turn
-        exploration_weight = 1.4 / (1.02 ** turn)  # Adjust this parameter
+        exploration_weight = 1.4 / (0.97 ** turn)  # Adjust this parameter
         children_with_scores = [(child, child.state.get_score() / (child.visits + 1e-6) + exploration_weight * math.sqrt(math.log(node.visits + 1) / (child.visits + 1e-6))) for child in node.children]
         return max(children_with_scores, key=lambda x: x[1])[0] if len(children_with_scores) > 0 else node
 
@@ -155,11 +147,9 @@ class Board:
                 return current_state.get_score()
             # as long as there exists a move
             for wall in self.dir_map.keys():
-                if not (self.state.check_valid_step(
+                if not self.state.check_valid_step(
                         current_state.my_pos, move, current_state.adv_pos, wall, current_state.current_board
-                    ) if self.maximizing else self.state.check_valid_step(
-                        current_state.adv_pos, move, current_state.my_pos, wall, current_state.current_board
-                    )):
+                    ):
                     continue
                 current_state = current_state.perform_action(move, wall)
                 current_state.last_action = move, wall
@@ -175,17 +165,16 @@ class Board:
 
 # Assume you have a GameState class with the necessary methods
 class GameState:
-    def __init__(self, chess_board, my_pos, adv_pos, max_step, maximizing, max_depth):
+    def __init__(self, chess_board, my_pos, adv_pos, max_step, max_depth):
         # Initialize game state
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
         self.current_board = chess_board
-        self.posible_moves = self.sort_positions(chess_board, my_pos, adv_pos, max_step) # this takes 0.02 seconds
+        self.posible_moves = [] # this takes 0.02 seconds
         self.current_index = 0
         self.best_action = None
         self.my_pos = my_pos
         self.adv_pos = adv_pos
         self.max_step = max_step
-        self.maximizing = maximizing
         self.max_depth = max_depth
         self.dir_map = {
             "u": 0,
@@ -219,7 +208,19 @@ class GameState:
             if i == True:
                 count += 1
         factor = abs(x2 - x) + abs(y2 - y)
-        return count, factor, my_pos
+        # center = 1 if x is closer to center than x2 same for y
+        if abs(x - self.size // 2) <= abs(x2 - self.size // 2):
+            if abs(y - self.size // 2) <= abs(y2 - self.size // 2):
+                center = -1
+            else:
+                center = 0
+        else:
+            if abs(y - self.size // 2) <= abs(y2 - self.size // 2):
+                center = 0
+            else:
+                center = 1  
+
+        return center, count, factor, my_pos
 
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         positions = []
@@ -229,41 +230,56 @@ class GameState:
             self.max_step = max_step
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board, True):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos))
-        positions.sort(key=lambda x: (x[0], x[1]))
+            
+        positions.sort(key=lambda x: (x[0], x[1], x[2]))
 
-        return list(map(lambda c: c[2], positions))
+        return list(map(lambda c: c[3], positions))
     
     def next_actions(self):
         number_of_actions = len(self.posible_moves)
         return [self.posible_moves.pop(i) for i in range(5) if i < number_of_actions - 1]
     
     def next_action(self):
+        if len(self.posible_moves) == 0:
+            self.posible_moves = self.sort_positions(self.current_board, self.my_pos, self.adv_pos, self.max_step)
         return self.posible_moves.pop(0) if len(self.posible_moves) > 0 else None
-    
+
+  
     def perform_action(self, move, action):
         x, y = move
         new_board = self.current_board.copy()
         new_board[x, y, self.dir_map[action]] = True
-        return GameState(new_board, move, self.adv_pos, self.max_step, not self.maximizing, self.max_depth-1)
+        return GameState(new_board, move, self.adv_pos, self.max_step, self.max_depth-1)
 
     def clone(self):
         # Create a copy of the current state
         return 0
 
-    def get_score(self, finish = True):
-        if finish:
-            my_area_size = self.calculate_area_size(self.current_board, self.my_pos)
-            adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos)
+    def get_score(self):
+        if not self.check_valid_move(self.my_pos, self.adv_pos, self.adv_pos, self.current_board, False):
+            score1 = self.calculate_area_size(self.current_board, self.my_pos)
+            score2 = self.calculate_area_size(self.current_board, self.adv_pos)
+            if score1 > score2:
+                return 5
+            elif score1 < score2:
+                return -5
+            else:
+                return 0
         else:
             my_area_size = self.calculate_area_size(self.current_board, self.my_pos, self.max_step)
             adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos, self.max_step)
 
-        return my_area_size - adv_area_size
+            if my_area_size > adv_area_size:
+                return 1
+            elif my_area_size < adv_area_size:
+                return -1
+            else:
+                return 0
     
     # with numpy shit
     def calculate_area_size(self, chess_board, start_pos, limit=200):
         visited = np.zeros_like(chess_board[..., 0], dtype=bool)
-        stack = deque([start_pos])
+        stack = [start_pos]
         area_size = 0
         while stack and limit > 0:
             limit -= 1
@@ -384,3 +400,55 @@ class GameState:
                 state_queue.put((priority, next_pos, cur_cost + 1))
 
         return is_reached
+    
+    # def check_endgame(self):
+    #     """
+    #     Check if the game ends and compute the current score of the agents.
+
+    #     Returns
+    #     -------
+    #     is_endgame : bool
+    #         Whether the game ends.
+    #     player_1_score : int
+    #         The score of player 1.
+    #     player_2_score : int
+    #         The score of player 2.
+    #     """
+
+    #     size = self.current_board.shape[0] - 1
+    #     # Union-Find
+    #     father = dict()
+    #     for r in range(size):
+    #         for c in range(size):
+    #             father[(r, c)] = (r, c)
+
+    #     def find(pos):
+    #         if father[pos] != pos:
+    #             father[pos] = find(father[pos])
+    #         return father[pos]
+
+    #     def union(pos1, pos2):
+    #         father[pos1] = pos2
+
+    #     for r in range(size):
+    #         for c in range(size):
+    #             for dir, move in enumerate(
+    #                 self.moves
+    #             ):  # Only check down and right
+    #                 if self.current_board[r, c, dir + 1]:
+    #                     continue
+    #                 pos_a = find((r, c))
+    #                 pos_b = find((r + move[0], c + move[1]))
+    #                 if pos_a != pos_b:
+    #                     union(pos_a, pos_b)
+
+    #     for r in range(size):
+    #         for c in range(size):
+    #             find((r, c))
+    #     p0_r = find(tuple(self.my_pos))
+    #     p1_r = find(tuple(self.adv_pos))
+    #     p0_score = list(father.values()).count(p0_r)
+    #     p1_score = list(father.values()).count(p1_r)
+    #     if p0_r == p1_r:
+    #         return False, p0_score, p1_score
+    #     return True, p0_score, p1_score

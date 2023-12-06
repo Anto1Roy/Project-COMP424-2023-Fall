@@ -238,6 +238,8 @@ class SecondAgent(Agent):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos))
         positions.sort(key=lambda x: (x[0], x[1]))
 
+        # print("sort_positions took ", time.time() - current, "seconds.")
+
         return list(map(lambda c: c[2], positions[:10]))
 
     def is_terminal_node(self, depth, start_time, my_pos, adv_pos, chess_board):
@@ -268,7 +270,7 @@ class SecondAgent(Agent):
         if result == 1:
             return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None, None 
         elif result == 0:
-            self.evaluate_board_finish(chess_board, my_pos, adv_pos), None, None
+            5 * self.evaluate_board_finish(chess_board, my_pos, adv_pos), None, None
         
         # does this make sense?
         current_eval = self.evaluate_board(chess_board, my_pos, adv_pos, max_step) if maximizing_player else self.evaluate_board(chess_board, adv_pos, my_pos, max_step)
