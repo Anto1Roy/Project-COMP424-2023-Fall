@@ -163,30 +163,8 @@ class ThirdAgent(Agent):
 
     ## op np maniere de compter les walls
     def count_walls(self, chess_board):
-        return np.sum(chess_board)
+        return np.sum(chess_board, dtype=bool)
 
-    def calculate_area_size_og(self, chess_board, start_pos, limit=50):
-        visited = set()
-        stack = deque([start_pos])
-        area_size = 0
-        while stack and limit > 0:
-            limit -= 1
-            current_pos = stack.pop()
-            if current_pos in visited:
-                continue
-
-            visited.add(current_pos)
-            area_size += 1
-
-            for direction in ["u", "r", "d", "l"]:
-                new_x, new_y = self.get_new_position(current_pos, direction)
-                if (
-                    self.is_valid_position(chess_board, (new_x, new_y))
-                    and (new_x, new_y) not in visited
-                ):
-                    stack.append((new_x, new_y))
-
-        return area_size
 
     def is_valid_position(self, chess_board, pos):
         x, y = pos
@@ -220,16 +198,29 @@ class ThirdAgent(Agent):
                     positions.append((x + i, y + j))
         return positions
 
-    def evaluate_position(self, chess_board, my_pos, adv_pos):
-        x, y = my_pos
-        x2, y2 = adv_pos
-        count = 0
-        for i in chess_board[x][y]:
-            if i == True:
-                count += 1
-        factor = abs(x2 - x) + abs(y2 - y)
-        return count, factor, my_pos
+    
+    def three_walls(self, chess_board, my_pos):
+        return np.sum(chess_board[my_pos]) == 3
+    
+    def count_available_moves(self, chess_board, pos):
+        move_count = 0
+        for dx, dy in self.moves:
+            new_x, new_y = pos[0] + dx, pos[1] + dy
+            if self.is_valid_position(chess_board, (new_x, new_y)):
+                move_count += 1
+        return move_count
+    
+    
+    def evaluate_pos_new(self, chess_board, my_pos, adv_pos):
+        utility = 0
+        walls = self.count_walls(chess_board)
+        if self.three_walls(chess_board, my_pos): 
+            utility += -100 # we dont want that
+        utility += self.count_available_moves(chess_board, my_pos) * 5
+        utility += (abs(my_pos[0]-adv_pos[0]) + abs(my_pos[1]-adv_pos[1])) * walls/100 # gets less important as the game progresses
+        return utility
 
+    
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         current = time.time()
         positions = []
@@ -240,7 +231,7 @@ class ThirdAgent(Agent):
 
         # print("sort_positions took ", time.time() - current, "thirds.")
 
-        return list(map(lambda c: c[2], positions[:10]))
+        return [pos[1] for pos in positions[:3]]
 
     def is_terminal_node(self, depth, start_time, my_pos, adv_pos, chess_board):
         # Add your own conditions to check if it's a terminal node
