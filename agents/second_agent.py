@@ -19,10 +19,11 @@ class SecondAgent(Agent):
     """
 
     global BOARD_SIZE
-    global counter
+    global turn
 
     def __init__(self):
         super(SecondAgent, self).__init__()
+        global turn 
         self.name = "SecondAgent"
         self.dir_map = {
             "u": 0,
@@ -31,9 +32,10 @@ class SecondAgent(Agent):
             "l": 3,
         }
         self.max_depth = 4
+        turn = 0
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
-        global counter
+        global turn
         """
         Implement the step function of your agent here.
         You can use the following variables to access the chess board:
@@ -48,16 +50,22 @@ class SecondAgent(Agent):
 
         Please check the sample implementation in agents/random_agent.py or agents/human_agent.py for more details.
         """
+        turn += 1
         self.max_step = max_step
         self.size = chess_board.shape[0] - 1
+        if turn / max_step < 1:
+            self.max_depth = 4
+        elif turn / max_step < 2:
+            self.max_depth = 5
+        else:
+            self.max_depth = 6
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
-        counter = 0
         # Some simple code to help you with timing. Consider checking
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
         start_time = time.time()
         # print(MaxFlow(chess_board).ford_fulkerson(my_pos, adv_pos))
-        _, new_pos, wall = self.gyuminimax(
+        _, new_pos, wall = self.minmax(
             chess_board,
             my_pos,
             adv_pos,
@@ -208,6 +216,7 @@ class SecondAgent(Agent):
             return False
 
     # write a function that returns every move such that i + j <= max_step
+    # def iterate_positions_around(self, start_pos, chess_board, max_step):
     def iterate_positions_around(self, x, y, radius):
         positions = []
         for i in range(-radius, radius):
@@ -219,6 +228,8 @@ class SecondAgent(Agent):
                 ):
                     positions.append((x + i, y + j))
         return positions
+    
+
 
     def evaluate_position(self, chess_board, my_pos, adv_pos):
         x, y = my_pos
@@ -233,26 +244,23 @@ class SecondAgent(Agent):
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         current = time.time()
         positions = []
-        for pos in self.iterate_positions_around(my_pos[0], my_pos[1], max_step):
+        for pos in self.iterate_positions_around(my_pos[0], my_pos[1] , max_step):
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board, True):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos))
         positions.sort(key=lambda x: (x[0], x[1]))
-
-        # print("sort_positions took ", time.time() - current, "seconds.")
-
+        
         return list(map(lambda c: c[2], positions[:10]))
 
     def is_terminal_node(self, depth, start_time, my_pos, adv_pos, chess_board):
         # Add your own conditions to check if it's a terminal node
-        return 1 if depth == 0 or time.time() - start_time > 1.9 else (0 if self.check_valid_move(my_pos, adv_pos, adv_pos, chess_board, False) else -1)
+        if depth == 0 or time.time() - start_time > 1.9 :
+            return 1
+        elif not self.check_valid_move(my_pos, adv_pos, adv_pos, chess_board, False):
+            return 0
+        else:
+            return -1
 
-    # if score is 1 vs 98 it biases the algorithm to go towards the 98 instead of going to the action with the most victories in total
-    # live
-    # being between the middle and the other agent is important
-    # how to check for max flow in end game
-    # a star path from my pos to adv pos
-
-    def gyuminimax(
+    def minmax(
         self,
         chess_board,
         my_pos,
@@ -264,16 +272,13 @@ class SecondAgent(Agent):
         maximizing_player,
         start_time,
     ):
-        global counter
-        counter += 1
         result = self.is_terminal_node(depth, start_time, my_pos, adv_pos, chess_board)
         if result == 1:
             return self.evaluate_board(chess_board, my_pos, adv_pos, max_step), None, None 
         elif result == 0:
-            5 * self.evaluate_board_finish(chess_board, my_pos, adv_pos), None, None
+            return 100 * self.evaluate_board_finish(chess_board, my_pos, adv_pos), None, None
         
-        # does this make sense?
-        current_eval = self.evaluate_board(chess_board, my_pos, adv_pos, max_step) if maximizing_player else self.evaluate_board(chess_board, adv_pos, my_pos, max_step)
+        #current_eval = self.evaluate_board(chess_board, my_pos, adv_pos, max_step) if maximizing_player else self.evaluate_board(chess_board, adv_pos, my_pos, max_step)
 
         if maximizing_player:
             max_eval = float("-inf")
@@ -285,7 +290,7 @@ class SecondAgent(Agent):
                     ):
                         continue
                     new_board = self.simulate_move(chess_board, move, wall)
-                    eval, _, _ = self.gyuminimax(
+                    eval, _, _ = self.minmax(
                         new_board,
                         move,
                         adv_pos,
@@ -296,8 +301,7 @@ class SecondAgent(Agent):
                         False,
                         start_time
                     )
-                    # does this make sense?
-                    eval += current_eval
+                    #eval += current_eval
                     if eval > max_eval:
                         max_eval = eval
                         best_action = (move, wall)
@@ -316,11 +320,10 @@ class SecondAgent(Agent):
                     ):
                         continue
                     new_board = self.simulate_move(chess_board, move, wall)
-                    eval, _, _ = self.gyuminimax(
+                    eval, _, _ = self.minmax(
                         new_board, my_pos, move, max_step, depth - 1, alpha, beta, True, start_time
                     )
-                    # does this make sense?
-                    eval += current_eval
+                    # eval += current_eval
                     if eval < min_eval:
                         min_eval = eval
                         best_action = (move, wall)
@@ -431,82 +434,3 @@ class SecondAgent(Agent):
         new_board[x, y, self.dir_map[action]] = True
 
         return new_board
-
-class MaxFlow:
-    def __init__(self, graph):
-        self.graph = graph
-        self.n = len(graph)
-        self.m = len(graph[0])
-
-    def ford_fulkerson(self, source, sink):
-        parent = [[(-1, -1) for _ in range(self.m)] for _ in range(self.n)]
-        max_flow = 0
-
-        while True:
-            # Find augmenting path using BFS
-            path_flow = float('inf')
-            visited = [[False] * self.m for _ in range(self.n)]
-            queue = deque([(source, source)])
-            visited[source[0]][source[1]] = True
-
-            while queue:
-                u, prev = queue.popleft()
-                for v in self.get_adjacent_edges(u):
-                    if not visited[v[0]][v[1]]:
-                        queue.append((v, u))
-                        visited[v[0]][v[1]] = True
-                        parent[v[0]][v[1]] = (u, prev)
-                        path_flow = 1  # Capacity is always 1
-
-            if not visited[sink[0]][sink[1]]:
-                break  # No more augmenting paths
-
-            # Update residual capacities along the path
-            max_flow += path_flow
-            current = sink
-            while current != source:
-                u, prev = parent[current[0]][current[1]]
-                self.update_capacity(u, current)
-                current = u
-
-        return max_flow
-
-    def min_cut(self, source):
-        # Perform DFS to find nodes reachable from source after max flow
-        visited = [[False] * self.m for _ in range(self.n)]
-        stack = [source]
-        visited[source[0]][source[1]] = True
-
-        while stack:
-            u = stack.pop()
-            for v in self.get_adjacent_edges(u):
-                if not visited[v[0]][v[1]]:
-                    stack.append(v)
-                    visited[v[0]][v[1]] = True
-
-        # Return the set of nodes reachable from the source
-        return {(i, j) for i in range(self.n) for j in range(self.m) if visited[i][j]}
-
-    def get_adjacent_edges(self, u):
-        i, j = u
-        edges = []
-        if i > 0 and not self.graph[i-1, j, 2]:  # Up
-            edges.append((i-1, j))
-        if i < self.n - 1 and not self.graph[i, j, 0]:  # Down
-            edges.append((i+1, j))
-        if j > 0 and not self.graph[i, j-1, 1]:  # Left
-            edges.append((i, j-1))
-        if j < self.m - 1 and not self.graph[i, j, 3]:  # Right
-            edges.append((i, j+1))
-        return edges
-
-    def update_capacity(self, u, v):
-        i, j = u
-        if u[0] == v[0] - 1:  # Move Up
-            self.graph[v[0], v[1], 0] = True
-        elif u[0] == v[0] + 1:  # Move Down
-            self.graph[u[0], u[1], 0] = True
-        elif u[1] == v[1] - 1:  # Move Left
-            self.graph[v[0], v[1], 3] = True
-        elif u[1] == v[1] + 1:  # Move Right
-            self.graph[u[0], u[1], 1] = True

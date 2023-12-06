@@ -86,7 +86,7 @@ class FourthAgent(Agent):
                     if not np.any(board.state.current_board != chess_board): # is slow -> wall autour de adv_pos
                         board.state.max_step = max_step
                         board.state.maximization = True
-                        board.state.max_depth = 6
+                        board.state.max_depth = 5
                         print("knew the state")
                         return board.state  
         return GameState(chess_board, my_pos, adv_pos, max_step, 6)
@@ -119,7 +119,7 @@ class Board:
         return self.state.is_terminal()
     
     def expand(self, node):
-        for _ in range(5):
+        for _ in range(3):
             move = node.state.next_action()
             if move:
                 for wall in self.dir_map.keys():
@@ -134,7 +134,7 @@ class Board:
     def best_child(self, node):
         global turn
         exploration_weight = 1.4 / (0.97 ** turn)  # Adjust this parameter
-        children_with_scores = [(child, child.state.get_score() / (child.visits + 1e-6) + exploration_weight * math.sqrt(math.log(node.visits + 1) / (child.visits + 1e-6))) for child in node.children]
+        children_with_scores = [(child, child.score / (child.visits + 1e-6) + exploration_weight * math.sqrt(math.log(node.visits + 1) / (child.visits + 1e-6))) for child in node.children]
         return max(children_with_scores, key=lambda x: x[1])[0] if len(children_with_scores) > 0 else node
 
     def simulate(self, node):
@@ -208,19 +208,7 @@ class GameState:
             if i == True:
                 count += 1
         factor = abs(x2 - x) + abs(y2 - y)
-        # center = 1 if x is closer to center than x2 same for y
-        if abs(x - self.size // 2) <= abs(x2 - self.size // 2):
-            if abs(y - self.size // 2) <= abs(y2 - self.size // 2):
-                center = -1
-            else:
-                center = 0
-        else:
-            if abs(y - self.size // 2) <= abs(y2 - self.size // 2):
-                center = 0
-            else:
-                center = 1  
-
-        return center, count, factor, my_pos
+        return count, factor, my_pos
 
     def sort_positions(self, chess_board, my_pos, adv_pos, max_step):
         positions = []
@@ -231,9 +219,9 @@ class GameState:
             if self.check_valid_move(my_pos, pos, adv_pos, chess_board, True):
                 positions.append(self.evaluate_position(chess_board, pos, adv_pos))
             
-        positions.sort(key=lambda x: (x[0], x[1], x[2]))
+        positions.sort(key=lambda x: (x[0], x[1]))
 
-        return list(map(lambda c: c[3], positions))
+        return list(map(lambda c: c[2], positions))
     
     def next_actions(self):
         number_of_actions = len(self.posible_moves)
@@ -254,27 +242,44 @@ class GameState:
     def clone(self):
         # Create a copy of the current state
         return 0
+    
+    def get_current_score(self):
+        my_area_size = self.calculate_area_size(self.current_board, self.my_pos, self.max_step)
+        adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos, self.max_step)
+
+        return my_area_size - adv_area_size
+
+        
 
     def get_score(self):
         if not self.check_valid_move(self.my_pos, self.adv_pos, self.adv_pos, self.current_board, False):
             score1 = self.calculate_area_size(self.current_board, self.my_pos)
             score2 = self.calculate_area_size(self.current_board, self.adv_pos)
             if score1 > score2:
-                return 5
+                return 5 / (self.max_depth + 1)
             elif score1 < score2:
-                return -5
+                return 5 / (self.max_depth + 1)
             else:
                 return 0
         else:
-            my_area_size = self.calculate_area_size(self.current_board, self.my_pos, self.max_step)
-            adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos, self.max_step)
+            my_area_size = self.calculate_area_size(self.current_board, self.my_pos)
+            adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos)
 
             if my_area_size > adv_area_size:
-                return 1
+                return 1 / (self.max_depth + 1)
             elif my_area_size < adv_area_size:
-                return -1
+                return -1 / (self.max_depth + 1)
             else:
                 return 0
+            # my_area_size = self.calculate_area_size(self.current_board, self.my_pos, self.max_step)
+            # adv_area_size = self.calculate_area_size(self.current_board, self.adv_pos, self.max_step)
+
+            # if my_area_size > adv_area_size:
+            #     return 1
+            # elif my_area_size < adv_area_size:
+            #     return -1
+            # else:
+            #     return 0
     
     # with numpy shit
     def calculate_area_size(self, chess_board, start_pos, limit=200):
