@@ -4,3 +4,4 @@ from .human_agent import HumanAgent
 from .student_agent import StudentAgent
 from .second_agent import SecondAgent
 from .third_agent import ThirdAgent
+from .fourth_agent import FourthAgent
